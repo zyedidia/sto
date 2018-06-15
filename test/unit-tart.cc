@@ -190,7 +190,7 @@ int main() {
     testErase();
     multiWrite();
     CleanATART();
-    ThreadWrites1();
+    // ThreadWrites1();
     CleanATART();
     ABA();
     CleanATART();

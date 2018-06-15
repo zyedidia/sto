@@ -67,6 +67,8 @@ void ABA1() {
     } catch (Transaction::Abort e) {
         printf("aba1 aborted\n");
     }
+            printf("ABA1 commited\n");
+
 }
 
 void ABA2() {
@@ -78,6 +80,8 @@ void ABA2() {
     } catch (Transaction::Abort e) {
         printf("aba 2 abored\n");
     }
+                printf("ABA2 commited\n");
+
 }
 
 void ABA3() {
@@ -89,4 +93,6 @@ void ABA3() {
     } catch (Transaction::Abort e) {
         printf("aba3 aborted\n");
     }
+                printf("ABA3 commited\n");
+
 }
