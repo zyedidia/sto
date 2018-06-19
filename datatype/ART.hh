@@ -1071,7 +1071,10 @@ art_leaf* art_insert(art_tree *t, const unsigned char *key, int key_len, void *v
     art_leaf* new_leaf = recursive_insert(t->root, &t->root, key, key_len, value, 0, &old_val);
     if (!old_val) {
         t->size++;
+        printf("new insert\n");
         *new_insert = true;
+    } else {
+        *new_insert = false;
     }
     printf("art insert returning %p, new insert is %d\n", new_leaf, *new_insert);
     return new_leaf;

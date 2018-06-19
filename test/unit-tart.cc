@@ -232,6 +232,13 @@ void testReadWrite() {
     sleep(1);
     assert(!t1.try_commit());
 
+    {
+        TransactionGuard t;
+        auto x = art.lookup("world");
+        auto y = art.lookup("hello");
+        assert(y == 6);
+    }
+
     printf("PASS: %s\n", __FUNCTION__);
 }
 
