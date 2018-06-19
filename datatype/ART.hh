@@ -632,14 +632,16 @@ art_leaf* art_search(const art_tree *t, const unsigned char *key, int key_len) {
     while (n) {
         // Might be a leaf
         if (IS_LEAF(n)) {
+            auto nold = n;
             n = (art_node*)LEAF_RAW(n);
+            printf("old n is %p, new n is %p\n", nold, n);
             // Check if the expanded path matches
             if (!leaf_matches((art_leaf*)n, key, key_len, depth)) {
-                n->nvers_.unlock_exclusive();
+                nold->nvers_.unlock_exclusive();
                 printf("0 unlocked n\n");
                 return ((art_leaf*)n);
             }
-            n->nvers_.unlock_exclusive();
+            nold->nvers_.unlock_exclusive();
                 printf("1 unlocked n\n");
             return NULL;
         }
@@ -1071,6 +1073,7 @@ art_leaf* art_insert(art_tree *t, const unsigned char *key, int key_len, void *v
         t->size++;
         *new_insert = true;
     }
+    printf("art insert returning %p, new insert is %d\n", new_leaf, *new_insert);
     return new_leaf;
 }
 

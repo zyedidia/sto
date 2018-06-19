@@ -86,10 +86,13 @@ public:
     }
     bool check(TransItem& item, Transaction& txn) override {
         Key key = item.template key<Key>();
+        printf("checking %s\n", c_str(key));
         art_leaf* s = art_search(&root_.access(), c_str(key), key.length());
         if (s == NULL) {
+            printf("null check\n");
             return vers_.cp_check_version(txn, item);
         }
+        printf("check returning\n");
         return s->vers.cp_check_version(txn, item);
     }
     void install(TransItem& item, Transaction& txn) override {
@@ -103,9 +106,11 @@ public:
             bool new_insert;
             art_leaf* s = art_insert(&root_.access(), c_str(key), key.length(), (void*) val, &new_insert);
             if (new_insert) {
+                printf("tree version set\n");
                 txn.set_version(vers_);
             }
             s->vers.lock_exclusive();
+            printf("node version set\n");
             txn.set_version(s->vers);
             s->vers.unlock_exclusive();
         }

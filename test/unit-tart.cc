@@ -229,6 +229,7 @@ void testReadWrite() {
     TestTransaction t2(1);
     art.insert("hello", 6);
     assert(t2.try_commit());
+    sleep(1);
     assert(!t1.try_commit());
 
     printf("PASS: %s\n", __FUNCTION__);
