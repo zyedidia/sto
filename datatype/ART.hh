@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <stdint.h>
+#include "Sto.hh"
 #ifndef ART_H
 #define ART_H
 
@@ -56,6 +57,7 @@ typedef int(*art_callback)(void *data, const unsigned char *key, uint32_t key_le
  * of all the various node sizes
  */
 typedef struct {
+    TVersion nvers_;
     uint8_t type;
     uint8_t num_children;
     uint32_t partial_len;
@@ -103,6 +105,7 @@ typedef struct {
  * of arbitrary size, as they include the key.
  */
 typedef struct {
+    TVersion vers;
     void *value;
     uint32_t key_len;
     unsigned char key[];
@@ -162,7 +165,7 @@ inline uint64_t art_size(art_tree *t) {
  * @return NULL if the item was newly inserted, otherwise
  * the old value pointer is returned.
  */
-void* art_insert(art_tree *t, const unsigned char *key, int key_len, void *value);
+art_leaf* art_insert(art_tree *t, const unsigned char *key, int key_len, void *value, bool* new_insert);
 
 /**
  * Deletes a value from the ART tree
@@ -182,7 +185,7 @@ void* art_delete(art_tree *t, const unsigned char *key, int key_len);
  * @return NULL if the item was not found, otherwise
  * the value pointer is returned.
  */
-void* art_search(const art_tree *t, const unsigned char *key, int key_len);
+art_leaf* art_search(const art_tree *t, const unsigned char *key, int key_len);
 
 /**
  * Returns the minimum valued leaf
@@ -354,10 +357,12 @@ int art_tree_destroy(art_tree *t) {
  * Returns the size of the ART tree.
  */
 
+
 #ifndef BROKEN_GCC_C99_INLINE
 extern inline uint64_t art_size(art_tree *t);
 #endif
 
+// Synch: Lock parent node before accessing kids
 static art_node** find_child(art_node *n, unsigned char c) {
     int i, mask, bitfield;
     union {
@@ -369,12 +374,123 @@ static art_node** find_child(art_node *n, unsigned char c) {
     switch (n->type) {
         case NODE4:
             p.p1 = (art_node4*)n;
+            n->nvers_.lock_exclusive();
             for (i=0 ; i < n->num_children; i++) {
 		/* this cast works around a bug in gcc 5.1 when unrolling loops
 		 * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=59124
 		 */
-                if (((unsigned char*)p.p1->keys)[i] == c)
-                    return &p.p1->children[i];
+                if (((unsigned char*)p.p1->keys)[i] == c) {
+                    auto ret = &p.p1->children[i];
+                    n->nvers_.unlock_exclusive();
+                    return ret;
+                }
+            }
+            n->nvers_.unlock_exclusive();
+            break;
+
+        {
+        case NODE16:
+            p.p2 = (art_node16*)n;
+            n->nvers_.lock_exclusive();
+
+            // support non-86 architectures
+            #ifdef __i386__
+                // Compare the key to all 16 stored keys
+                __m128i cmp;
+                cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
+                        _mm_loadu_si128((__m128i*)p.p2->keys));
+                
+                // Use a mask to ignore children that don't exist
+                mask = (1 << n->num_children) - 1;
+                bitfield = _mm_movemask_epi8(cmp) & mask;
+            #else
+            #ifdef __amd64__
+                // Compare the key to all 16 stored keys
+                __m128i cmp;
+                cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
+                        _mm_loadu_si128((__m128i*)p.p2->keys));
+
+                // Use a mask to ignore children that don't exist
+                mask = (1 << n->num_children) - 1;
+                bitfield = _mm_movemask_epi8(cmp) & mask;
+            #else
+                // Compare the key to all 16 stored keys
+                bitfield = 0;
+                for (i = 0; i < 16; ++i) {
+                    if (p.p2->keys[i] == c)
+                        bitfield |= (1 << i);
+                }
+
+                // Use a mask to ignore children that don't exist
+                mask = (1 << n->num_children) - 1;
+                bitfield &= mask;
+            #endif
+            #endif
+
+            /*
+             * If we have a match (any bit set) then we can
+             * return the pointer match using ctz to get
+             * the index.
+             */
+            if (bitfield) {
+                auto ret = &p.p2->children[__builtin_ctz(bitfield)];
+                n->nvers_.unlock_exclusive();
+                return ret;
+            }
+            n->nvers_.unlock_exclusive();
+            break;
+        }
+
+        case NODE48:
+            p.p3 = (art_node48*)n;
+            n->nvers_.lock_exclusive();
+            i = p.p3->keys[c];
+            if (i) {
+                auto ret = &p.p3->children[i-1];
+                n->nvers_.unlock_exclusive();
+                return ret;
+            }
+            n->nvers_.unlock_exclusive();
+            break;
+
+        case NODE256:
+            p.p4 = (art_node256*)n;
+            n->nvers_.lock_exclusive();
+            if (p.p4->children[c]) {
+                auto ret = &p.p4->children[c];
+                n->nvers_.unlock_exclusive();
+                return ret;
+            }
+            n->nvers_.unlock_exclusive();
+            break;
+
+        default:
+            abort();
+    }
+    return NULL;
+}
+
+//Unsynch for better locking
+// Synch: Lock parent node before accessing kids
+static art_node** find_child_unsynch(art_node *n, unsigned char c) {
+    int i, mask, bitfield;
+    union {
+        art_node4 *p1;
+        art_node16 *p2;
+        art_node48 *p3;
+        art_node256 *p4;
+    } p;
+    switch (n->type) {
+        case NODE4:
+            p.p1 = (art_node4*)n;
+            for (i=0 ; i < n->num_children; i++) {
+        /* this cast works around a bug in gcc 5.1 when unrolling loops
+         * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=59124
+         */
+                if (((unsigned char*)p.p1->keys)[i] == c) {
+                    auto ret = &p.p1->children[i];
+                    return ret;
+                }
             }
             break;
 
@@ -421,22 +537,28 @@ static art_node** find_child(art_node *n, unsigned char c) {
              * return the pointer match using ctz to get
              * the index.
              */
-            if (bitfield)
-                return &p.p2->children[__builtin_ctz(bitfield)];
+            if (bitfield) {
+                auto ret = &p.p2->children[__builtin_ctz(bitfield)];
+                return ret;
+            }
             break;
         }
 
         case NODE48:
             p.p3 = (art_node48*)n;
             i = p.p3->keys[c];
-            if (i)
-                return &p.p3->children[i-1];
+            if (i) {
+                auto ret = &p.p3->children[i-1];
+                return ret;
+            }
             break;
 
         case NODE256:
             p.p4 = (art_node256*)n;
-            if (p.p4->children[c])
-                return &p.p4->children[c];
+            if (p.p4->children[c]) {
+                auto ret = &p.p4->children[c];
+                return ret;
+            }
             break;
 
         default:
@@ -454,7 +576,14 @@ static inline int min(int a, int b) {
  * Returns the number of prefix characters shared between
  * the key and node.
  */
+// Unsure if synch needed
 static int check_prefix(const art_node *n, const unsigned char *key, int key_len, int depth) {
+    // TODO possibly unnecessary
+    // n->nvers_.lock_exclusive();
+    // auto partial_len = n->partial_len;
+    // auto partial = n->partial;
+    // n->nvers_.unlock_exclusive();
+
     int max_cmp = min(min(n->partial_len, MAX_PREFIX_LEN), key_len - depth);
     int idx;
     for (idx=0; idx < max_cmp; idx++) {
@@ -468,8 +597,15 @@ static int check_prefix(const art_node *n, const unsigned char *key, int key_len
  * Checks if a leaf matches
  * @return 0 on success.
  */
+// Unsure if synch needed
+// Let the caller handle locking of n
 static int leaf_matches(const art_leaf *n, const unsigned char *key, int key_len, int depth) {
     (void)depth;
+    // TODO: possibly unecessary
+    // n->nvers_.lock_exclusive();
+    // auto nkey = n->key;
+    // auto nkey_len = n->key_len;
+    // n->nvers_.unlock_exclusive();
     // Fail if the key lengths are different
     if (n->key_len != (uint32_t)key_len) return 1;
 
@@ -485,9 +621,13 @@ static int leaf_matches(const art_leaf *n, const unsigned char *key, int key_len
  * @return NULL if the item was not found, otherwise
  * the value pointer is returned.
  */
-void* art_search(const art_tree *t, const unsigned char *key, int key_len) {
+art_leaf* art_search(const art_tree *t, const unsigned char *key, int key_len) {
+    printf("art search entered\n");
     art_node **child;
+    // t->root->nvers_.lock_exclusive();
     art_node *n = t->root;
+    n->nvers_.lock_exclusive();
+    printf("root locked\n");
     int prefix_len, depth = 0;
     while (n) {
         // Might be a leaf
@@ -495,74 +635,129 @@ void* art_search(const art_tree *t, const unsigned char *key, int key_len) {
             n = (art_node*)LEAF_RAW(n);
             // Check if the expanded path matches
             if (!leaf_matches((art_leaf*)n, key, key_len, depth)) {
-                return ((art_leaf*)n)->value;
+                n->nvers_.unlock_exclusive();
+                printf("0 unlocked n\n");
+                return ((art_leaf*)n);
             }
+            n->nvers_.unlock_exclusive();
+                printf("1 unlocked n\n");
             return NULL;
         }
 
         // Bail if the prefix does not match
         if (n->partial_len) {
             prefix_len = check_prefix(n, key, key_len, depth);
-            if (prefix_len != min(MAX_PREFIX_LEN, n->partial_len))
+            if (prefix_len != min(MAX_PREFIX_LEN, n->partial_len)) {
+                printf("2 unlocked n\n");
+                n->nvers_.unlock_exclusive();
                 return NULL;
+            }
             depth = depth + n->partial_len;
         }
 
         // Recursively search
-        child = find_child(n, key[depth]);
-        n = (child) ? *child : NULL;
+        child = find_child_unsynch(n, key[depth]);
+        if(child) {
+            auto temp = *child;
+            printf("next locked\n");
+            temp->nvers_.lock_exclusive();
+                printf("3 unlocked n\n");
+            n->nvers_.unlock_exclusive();
+            n = temp;
+        } else {
+                printf("4 unlocked n\n");
+
+            n->nvers_.unlock_exclusive();
+            n = NULL;
+        }
         depth++;
     }
     return NULL;
 }
 
+// CONST no longer used in minimum maximum
+// while node version is locked, no kids can added or deleted
+
 // Find the minimum leaf under a node
-static art_leaf* minimum(const art_node *n) {
+// Synch, prev is the locked node of the previous recusion
+static art_leaf* minimum(art_node *n, art_node *prev = NULL) {
     // Handle base cases
-    if (!n) return NULL;
-    if (IS_LEAF(n)) return LEAF_RAW(n);
+    if (!n) {
+        if (prev) {
+            prev->nvers_.unlock_exclusive();
+        }
+        return NULL;
+    }
+    if (IS_LEAF(n)) {
+        if (prev) {
+            prev->nvers_.unlock_exclusive();
+        }
+        return LEAF_RAW(n);
+    } 
+    
+    n->nvers_.lock_exclusive();
+    if (prev) {
+        prev->nvers_.unlock_exclusive();
+    }
 
     int idx;
     switch (n->type) {
         case NODE4:
-            return minimum(((const art_node4*)n)->children[0]);
+            return minimum(((art_node4*)n)->children[0], n);
         case NODE16:
-            return minimum(((const art_node16*)n)->children[0]);
+            return minimum(((art_node16*)n)->children[0], n);
         case NODE48:
             idx=0;
-            while (!((const art_node48*)n)->keys[idx]) idx++;
-            idx = ((const art_node48*)n)->keys[idx] - 1;
-            return minimum(((const art_node48*)n)->children[idx]);
+            while (!((art_node48*)n)->keys[idx]) idx++;
+            idx = ((art_node48*)n)->keys[idx] - 1;
+            return minimum(((art_node48*)n)->children[idx], n);
         case NODE256:
             idx=0;
-            while (!((const art_node256*)n)->children[idx]) idx++;
-            return minimum(((const art_node256*)n)->children[idx]);
+            while (!((art_node256*)n)->children[idx]) idx++;
+            return minimum(((art_node256*)n)->children[idx], n);
         default:
             abort();
     }
 }
 
 // Find the maximum leaf under a node
-static art_leaf* maximum(const art_node *n) {
+// Synch, prev is the locked node of the previous recusion
+static art_leaf* maximum(art_node *n, art_node *prev = NULL) {
     // Handle base cases
-    if (!n) return NULL;
-    if (IS_LEAF(n)) return LEAF_RAW(n);
+    if (!n) {
+        if (prev) {
+            prev->nvers_.unlock_exclusive();
+        }
+        return NULL;
+    }
+    if (IS_LEAF(n)) {
+        if (prev) {
+            prev->nvers_.unlock_exclusive();
+        }
+        return LEAF_RAW(n);
+    } 
+
+    n->nvers_.lock_exclusive();
+    if (prev) {
+        prev->nvers_.unlock_exclusive();
+    }
 
     int idx;
     switch (n->type) {
         case NODE4:
-            return maximum(((const art_node4*)n)->children[n->num_children-1]);
+
+            return maximum(((art_node4*)n)->children[n->num_children-1], n);
         case NODE16:
-            return maximum(((const art_node16*)n)->children[n->num_children-1]);
+            return maximum(((art_node16*)n)->children[n->num_children-1], n);
         case NODE48:
             idx=255;
-            while (!((const art_node48*)n)->keys[idx]) idx--;
-            idx = ((const art_node48*)n)->keys[idx] - 1;
-            return maximum(((const art_node48*)n)->children[idx]);
+            while (!((art_node48*)n)->keys[idx]) idx--;
+            idx = ((art_node48*)n)->keys[idx] - 1;
+            return maximum(((art_node48*)n)->children[idx], n);
         case NODE256:
             idx=255;
-            while (!((const art_node256*)n)->children[idx]) idx--;
-            return maximum(((const art_node256*)n)->children[idx]);
+            while (!((art_node256*)n)->children[idx]) idx--;
+            return maximum(((art_node256*)n)->children[idx], n);
         default:
             abort();
     }
@@ -582,6 +777,7 @@ art_leaf* art_maximum(art_tree *t) {
     return maximum((art_node*)t->root);
 }
 
+// unsure if synch needed
 static art_leaf* make_leaf(const unsigned char *key, int key_len, void *value) {
     art_leaf *l = (art_leaf*)calloc(1, sizeof(art_leaf)+key_len);
     l->value = value;
@@ -590,6 +786,8 @@ static art_leaf* make_leaf(const unsigned char *key, int key_len, void *value) {
     return l;
 }
 
+
+// unsure if synch needed
 static int longest_common_prefix(art_leaf *l1, art_leaf *l2, int depth) {
     int max_cmp = min(l1->key_len, l2->key_len) - depth;
     int idx;
@@ -762,7 +960,7 @@ static int prefix_mismatch(const art_node *n, const unsigned char *key, int key_
     // If the prefix is short we can avoid finding a leaf
     if (n->partial_len > MAX_PREFIX_LEN) {
         // Prefix is longer than what we've checked, find a leaf
-        art_leaf *l = minimum(n);
+        art_leaf *l = minimum((art_node*) n);
         max_cmp = min(l->key_len, key_len)- depth;
         for (; idx < max_cmp; idx++) {
             if (l->key[idx+depth] != key[depth+idx])
@@ -772,11 +970,12 @@ static int prefix_mismatch(const art_node *n, const unsigned char *key, int key_
     return idx;
 }
 
-static void* recursive_insert(art_node *n, art_node **ref, const unsigned char *key, int key_len, void *value, int depth, int *old) {
+static art_leaf* recursive_insert(art_node *n, art_node **ref, const unsigned char *key, int key_len, void *value, int depth, int *old) {
     // If we are at a NULL node, inject a leaf
     if (!n) {
-        *ref = (art_node*)SET_LEAF(make_leaf(key, key_len, value));
-        return NULL;
+        art_leaf* l = make_leaf(key, key_len, value);
+        *ref = (art_node*) SET_LEAF(l);
+        return l;
     }
 
     // If we are at a leaf, we need to replace it with a node
@@ -786,9 +985,8 @@ static void* recursive_insert(art_node *n, art_node **ref, const unsigned char *
         // Check if we are updating an existing value
         if (!leaf_matches(l, key, key_len, depth)) {
             *old = 1;
-            void *old_val = l->value;
             l->value = value;
-            return old_val;
+            return l;
         }
 
         // New value, we must split the leaf into a node4
@@ -805,7 +1003,7 @@ static void* recursive_insert(art_node *n, art_node **ref, const unsigned char *
         *ref = (art_node*)new_node;
         add_child4(new_node, ref, l->key[depth+longest_prefix], SET_LEAF(l));
         add_child4(new_node, ref, l2->key[depth+longest_prefix], SET_LEAF(l2));
-        return NULL;
+        return l;
     }
 
     // Check if given node has a prefix
@@ -840,7 +1038,7 @@ static void* recursive_insert(art_node *n, art_node **ref, const unsigned char *
         // Insert the new leaf
         art_leaf *l = make_leaf(key, key_len, value);
         add_child4(new_node, ref, key[depth+prefix_diff], SET_LEAF(l));
-        return NULL;
+        return l;
     }
 
 RECURSE_SEARCH:;
@@ -854,7 +1052,7 @@ RECURSE_SEARCH:;
     // No child, node goes within us
     art_leaf *l = make_leaf(key, key_len, value);
     add_child(n, ref, key[depth], SET_LEAF(l));
-    return NULL;
+    return l;
 }
 
 /**
@@ -866,11 +1064,14 @@ RECURSE_SEARCH:;
  * @return NULL if the item was newly inserted, otherwise
  * the old value pointer is returned.
  */
-void* art_insert(art_tree *t, const unsigned char *key, int key_len, void *value) {
+art_leaf* art_insert(art_tree *t, const unsigned char *key, int key_len, void *value, bool* new_insert) {
     int old_val = 0;
-    void *old = recursive_insert(t->root, &t->root, key, key_len, value, 0, &old_val);
-    if (!old_val) t->size++;
-    return old;
+    art_leaf* new_leaf = recursive_insert(t->root, &t->root, key, key_len, value, 0, &old_val);
+    if (!old_val) {
+        t->size++;
+        *new_insert = true;
+    }
+    return new_leaf;
 }
 
 static void remove_child256(art_node256 *n, art_node **ref, unsigned char c) {

@@ -17,11 +17,14 @@ void testSimple() {
 
     std::string key1 = "hello world";
     std::string key2 = "1234";
+        printf("PASS -5: %s\n", __FUNCTION__);
+
     {
         TransactionGuard t;
         a.insert(key1, 123);
         a.insert(key2, 321);
     }
+    printf("PASS -4: %s\n", __FUNCTION__);
 
     {
         TransactionGuard t;
@@ -30,6 +33,7 @@ void testSimple() {
         assert(x == 123);
         assert(y == 321);
     }
+    printf("PASS -3: %s\n", __FUNCTION__);
 
     {
         TransactionGuard t;
@@ -37,6 +41,7 @@ void testSimple() {
         auto x = a.lookup(key1);
         assert(x == 0);
     }
+    printf("PASS -2: %s\n", __FUNCTION__);
 
     {
         TransactionGuard t;
@@ -44,6 +49,7 @@ void testSimple() {
         assert(x == 0);
         a.insert(key1, 567);
     }
+    printf("PASS -1: %s\n", __FUNCTION__);
 
     {
         TransactionGuard t;
@@ -107,10 +113,11 @@ void ThreadWrites1() {
     thr2.join();
     printf("to join thr1\n");
     thr1.join();
-        printf("joined\n");
+    printf("joined\n");
 
 
     {
+        TransactionGuard t;
         printf("to lookup\n");
         auto x = aTART.lookup(absentkey2);
         printf("looked\n");
@@ -184,8 +191,94 @@ void Absent2() {
     }
 }
 
+void testReadRead() {
+    TART art;
+    {
+        TransactionGuard t;
+        art.insert("hello", 4);
+    }
+    printf("PASS -3: %s\n", __FUNCTION__);
+
+    TestTransaction t1(0);
+    auto x = art.lookup("hello");
+    printf("PASS -2: %s\n", __FUNCTION__);
+
+    TestTransaction t2(1);
+    auto y = art.lookup("hello");
+    printf("PASS -1: %s\n", __FUNCTION__);
+    assert(t2.try_commit());
+
+    t1.use();
+    assert(t1.try_commit());
+    assert(x == y);
+    assert(x == 4);
+    printf("PASS: %s\n", __FUNCTION__);
+}
+
+void testReadWrite() {
+    TART art;
+    {
+        TransactionGuard t;
+        art.insert("hello", 4);
+    }
+
+    TestTransaction t1(0);
+    auto x = art.lookup("hello");
+    art.insert("world", 1);
+
+    TestTransaction t2(1);
+    art.insert("hello", 6);
+    assert(t2.try_commit());
+    assert(!t1.try_commit());
+
+    printf("PASS: %s\n", __FUNCTION__);
+}
+
+void testPerNodeV() {
+    TART art;
+    {
+        TransactionGuard t;
+        art.insert("x", 1);
+        art.insert("y", 2);
+        art.insert("z", 3);
+    }
+
+    {
+        TransactionGuard t;
+        auto x = art.lookup("x");
+        auto y = art.lookup("y");
+        auto z = art.lookup("z");
+        assert(x == 1);
+        assert(y == 2);
+        assert(z == 3);
+    }
+
+    TestTransaction t1(0);
+    auto x = art.lookup("x");
+    art.insert("z", 13);
+
+    TestTransaction t2(1);
+    art.insert("y", 12);
+    assert(t2.try_commit());
+    assert(t1.try_commit());
+
+    {
+        TransactionGuard t;
+        auto x = art.lookup("x");
+        auto y = art.lookup("y");
+        auto z = art.lookup("z");
+        assert(x == 1);
+        assert(y == 12);
+        assert(z == 13);
+    }
+}
+
 int main() {
     aTART = TART();
+
+    testReadWrite();
+    testReadRead();
+
     testSimple();
     testErase();
     multiWrite();
@@ -194,6 +287,9 @@ int main() {
     CleanATART();
     ABA();
     CleanATART();
+    testPerNodeV();
+
+    printf("TART tests pass\n");
 
     return 0;
 }
