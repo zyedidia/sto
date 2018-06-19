@@ -11,6 +11,7 @@
 
 #define NTHREAD 100
 #define NVALS 1000
+#define KEYSIZE 5
 
 TART art;
 std::string keys[NVALS];
@@ -23,8 +24,8 @@ std::string rand_string() {
         const size_t max_index = (sizeof(charset) - 1);
         return charset[ rand() % max_index ];
     };
-    std::string str(10, 0);
-    std::generate_n(str.begin(), 10, randchar);
+    std::string str(KEYSIZE, 0);
+    std::generate_n(str.begin(), KEYSIZE, randchar);
     return str;
 }
 
@@ -32,16 +33,17 @@ int rand_int() {
     return std::rand();
 }
 
-void doBench() {
+void doBench(int i) {
+    TThread::set_id(i);
     TRANSACTION_E {
-        for (int i = 0; i < 10; i++) {
-            auto keyI = rand_int() % NVALS;
-            auto valI = rand_int() % NVALS;
-            auto eraseI = rand_int() % NVALS;
-            art.insert(keys[keyI], vals[valI]);
-            assert(art.lookup(keys[keyI]) == vals[valI]);
-            art.erase(keys[eraseI]);
-        }
+    for (int i = 0; i < NVALS/10; i++) {
+        auto keyI = rand_int() % NVALS;
+        auto valI = rand_int() % NVALS;
+        auto eraseI = rand_int() % NVALS;
+        art.insert(keys[keyI], vals[valI]);
+        assert(art.lookup(keys[keyI]) == vals[valI]);
+        art.erase(keys[eraseI]);
+    }
     } RETRY_E(true);
 }
 
@@ -57,11 +59,14 @@ int main() {
 
     std::thread threads[NTHREAD];
 
+    std::clock_t start;
+    start = std::clock();
     for (int i = 0; i < NTHREAD; i++) {
-        threads[i] = std::thread(doBench);
+        threads[i] = std::thread(doBench, i);
     }
 
     for (int i = 0; i < NTHREAD; i++) {
         threads[i].join();
     }
+    std::cout << "Time: " << (std::clock() - start) / (double)(CLOCKS_PER_SEC / 1000) << " ms" << std::endl;
 }
