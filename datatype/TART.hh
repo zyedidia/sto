@@ -37,20 +37,20 @@ public:
         } else {
             std::pair<bool, Value> ret;
             vers_.lock_exclusive();
-            printf("art searching ... ... ... ");
+            // printf("art searching ... ... ... ");
             art_leaf* leaf = art_search(&root_.access(), c_str(k), k.length());
-            printf("art searched\n");
+            // printf("art searched\n");
             Value val = 0;
             if (leaf != NULL) {
                 val = (Value) leaf->value;
                 leaf->vers.observe_read(item);
-                printf("GET observed key %s, val is %d, vers is %d\n", c_str(k), val, leaf->vers);
+                // printf("GET observed key %s, val is %d, vers is %d\n", c_str(k), val, leaf->vers);
             } else {
                 vers_.observe_read(item);
             }
             vers_.unlock_exclusive();
             ret = {true, val};
-            printf("get key: %s, val: %lu\n", k.c_str(), val);
+            // printf("get key: %s, val: %lu\n", k.c_str(), val);
             return ret;
         }
     }
@@ -65,7 +65,7 @@ public:
     }
 
     void transPut(Key k, Value v) {
-        printf("put key: %s, val: %lu\n", k.c_str(), v);
+        // printf("put key: %s, val: %lu\n", k.c_str(), v);
         auto item = Sto::item(this, k);
         item.add_write(v);
         item.clear_flags(deleted_bit);
@@ -76,7 +76,7 @@ public:
     }
 
     void erase(Key k) {
-        printf("erase key: %s\n", k.c_str());
+        // printf("erase key: %s\n", k.c_str());
         auto item = Sto::item(this, k);
         item.add_flags(deleted_bit);
         item.add_write(0);
@@ -87,16 +87,16 @@ public:
     }
     bool check(TransItem& item, Transaction& txn) override {
         Key key = item.template key<Key>();
-        printf("checking %s\n", c_str(key));
+        // printf("checking %s\n", c_str(key));
         art_leaf* s = art_search(&root_.access(), c_str(key), key.length());
         if (s == NULL) {
-            printf("null check, tree version is %d\n", vers_);
+            // printf("null check, tree version is %d\n", vers_);
             return vers_.cp_check_version(txn, item);
         }
         // Value v = (Value) s->value;
         // bool new_insert = false;
         // s = art_insert(&root_.access(), c_str(key), key.length(), (void*) v, &new_insert);
-        printf("check returning, version is %d\n", s->vers);
+        // printf("check returning, version is %d\n", s->vers);
         return s->vers.cp_check_version(txn, item);
     }
     void install(TransItem& item, Transaction& txn) override {
@@ -110,23 +110,23 @@ public:
             bool new_insert = false;
             art_leaf* s = art_insert(&root_.access(), c_str(key), key.length(), (void*) val, &new_insert);
             if (new_insert) {
-                printf("tree version set\n");
+                // printf("tree version set\n");
                 txn.set_version(vers_);
             }
             s->vers.lock_exclusive();
-            printf("install: key is %s, val version was %d\n", c_str(key), s->vers);
+            // printf("install: key is %s, val version was %d\n", c_str(key), s->vers);
             txn.set_version(s->vers);
-            printf("install: val version set to %d\n", s->vers);
+            // printf("install: val version set to %d\n", s->vers);
             s->vers.unlock_exclusive();
         }
 
-        printf("install key: %s, val: %lu\n", key.c_str(), val);
+        // printf("install key: %s, val: %lu\n", key.c_str(), val);
     }
     void unlock(TransItem& item) override {
         if (vers_.is_locked_here()) {
             vers_.cp_unlock(item);
         }
-        printf("UNLOCKED\n");
+        // printf("UNLOCKED\n");
     }
     void print(std::ostream& w, const TransItem& item) const override {
         w << "{TART<" << typeid(int).name() << "> " << (void*) this;
