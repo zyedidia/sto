@@ -272,6 +272,7 @@ static art_node* alloc_node(uint8_t type) {
             abort();
     }
     n->type = type;
+    n->nvers_ = TVersion();
     return n;
 }
 
@@ -624,9 +625,11 @@ static int leaf_matches(const art_leaf *n, const unsigned char *key, int key_len
 art_leaf* art_search(const art_tree *t, const unsigned char *key, int key_len) {
     printf("art search entered\n");
     art_node **child;
-    // t->root->nvers_.lock_exclusive();
+    printf("root lock is %p\n", t->root->nvers_);
+    t->root->nvers_.lock_exclusive();
+    t->root->nvers_.unlock_exclusive();
     art_node *n = t->root;
-    n->nvers_.lock_exclusive();
+    // n->nvers_.lock_exclusive();
     printf("root locked\n");
     int prefix_len, depth = 0;
     while (n) {
@@ -637,11 +640,11 @@ art_leaf* art_search(const art_tree *t, const unsigned char *key, int key_len) {
             printf("old n is %p, new n is %p\n", nold, n);
             // Check if the expanded path matches
             if (!leaf_matches((art_leaf*)n, key, key_len, depth)) {
-                nold->nvers_.unlock_exclusive();
+                // nold->nvers_.unlock_exclusive();
                 printf("0 unlocked n\n");
                 return ((art_leaf*)n);
             }
-            nold->nvers_.unlock_exclusive();
+            // nold->nvers_.unlock_exclusive();
                 printf("1 unlocked n\n");
             return NULL;
         }
@@ -651,7 +654,7 @@ art_leaf* art_search(const art_tree *t, const unsigned char *key, int key_len) {
             prefix_len = check_prefix(n, key, key_len, depth);
             if (prefix_len != min(MAX_PREFIX_LEN, n->partial_len)) {
                 printf("2 unlocked n\n");
-                n->nvers_.unlock_exclusive();
+                // n->nvers_.unlock_exclusive();
                 return NULL;
             }
             depth = depth + n->partial_len;
@@ -662,14 +665,14 @@ art_leaf* art_search(const art_tree *t, const unsigned char *key, int key_len) {
         if(child) {
             auto temp = *child;
             printf("next locked\n");
-            temp->nvers_.lock_exclusive();
+            // temp->nvers_.lock_exclusive();
                 printf("3 unlocked n\n");
-            n->nvers_.unlock_exclusive();
+            // n->nvers_.unlock_exclusive();
             n = temp;
         } else {
                 printf("4 unlocked n\n");
 
-            n->nvers_.unlock_exclusive();
+            // n->nvers_.unlock_exclusive();
             n = NULL;
         }
         depth++;
@@ -782,6 +785,7 @@ art_leaf* art_maximum(art_tree *t) {
 // unsure if synch needed
 static art_leaf* make_leaf(const unsigned char *key, int key_len, void *value) {
     art_leaf *l = (art_leaf*)calloc(1, sizeof(art_leaf)+key_len);
+    l->vers = TVersion();
     l->value = value;
     l->key_len = key_len;
     memcpy(l->key, key, key_len);

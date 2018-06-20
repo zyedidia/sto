@@ -37,13 +37,14 @@ public:
         } else {
             std::pair<bool, Value> ret;
             vers_.lock_exclusive();
-            printf("art searching\n");
+            printf("art searching ... ... ... ");
             art_leaf* leaf = art_search(&root_.access(), c_str(k), k.length());
             printf("art searched\n");
             Value val = 0;
             if (leaf != NULL) {
                 val = (Value) leaf->value;
                 leaf->vers.observe_read(item);
+                printf("GET observed key %s, val is %d, vers is %d\n", c_str(k), val, leaf->vers);
             } else {
                 vers_.observe_read(item);
             }
@@ -89,10 +90,10 @@ public:
         printf("checking %s\n", c_str(key));
         art_leaf* s = art_search(&root_.access(), c_str(key), key.length());
         if (s == NULL) {
-            printf("null check\n");
+            printf("null check, tree version is %d\n", vers_);
             return vers_.cp_check_version(txn, item);
         }
-        printf("check returning\n");
+        printf("check returning, version is %d\n", s->vers);
         return s->vers.cp_check_version(txn, item);
     }
     void install(TransItem& item, Transaction& txn) override {
@@ -110,8 +111,9 @@ public:
                 txn.set_version(vers_);
             }
             s->vers.lock_exclusive();
-            printf("node version set\n");
+            printf("install: key is %s, val version was %d\n", c_str(key), s->vers);
             txn.set_version(s->vers);
+            printf("install: val version set to %d\n", s->vers);
             s->vers.unlock_exclusive();
         }
 
@@ -121,6 +123,7 @@ public:
         if (vers_.is_locked_here()) {
             vers_.cp_unlock(item);
         }
+        printf("UNLOCKED\n");
     }
     void print(std::ostream& w, const TransItem& item) const override {
         w << "{TART<" << typeid(int).name() << "> " << (void*) this;
