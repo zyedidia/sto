@@ -93,6 +93,9 @@ public:
             printf("null check, tree version is %d\n", vers_);
             return vers_.cp_check_version(txn, item);
         }
+        // Value v = (Value) s->value;
+        // bool new_insert = false;
+        // s = art_insert(&root_.access(), c_str(key), key.length(), (void*) v, &new_insert);
         printf("check returning, version is %d\n", s->vers);
         return s->vers.cp_check_version(txn, item);
     }
@@ -104,7 +107,7 @@ public:
             art_delete(&root_.access(), c_str(key), key.length());
             txn.set_version(vers_);
         } else {
-            bool new_insert;
+            bool new_insert = false;
             art_leaf* s = art_insert(&root_.access(), c_str(key), key.length(), (void*) val, &new_insert);
             if (new_insert) {
                 printf("tree version set\n");
