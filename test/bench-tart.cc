@@ -41,13 +41,6 @@ void doBenchInsert(int i) {
         TRANSACTION_E {
             art.insert(keys[keyI], vals[valI]);
         } RETRY_E(true);
-
-        TRANSACTION_E {
-            assert(art.lookup(keys[keyI]) == vals[valI]);
-        } RETRY_E(true);
-        auto eraseI = rand_int() % NVALS;
-        assert(art.lookup(keys[keyI]) == vals[valI]);
-        art.erase(keys[eraseI]);
     }
 }
 
