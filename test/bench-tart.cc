@@ -15,7 +15,7 @@
 
 TART art;
 std::string keys[NVALS];
-int vals[NVALS];
+unsigned vals[NVALS];
 
 std::string rand_string() {
     auto randchar = []() -> char
@@ -33,18 +33,35 @@ int rand_int() {
     return std::rand();
 }
 
-void doBench(int i) {
+void doBenchInsert(int i) {
     TThread::set_id(i);
-    TRANSACTION_E {
     for (int i = 0; i < NVALS/10; i++) {
         auto keyI = rand_int() % NVALS;
         auto valI = rand_int() % NVALS;
+        TRANSACTION_E {
+            art.insert(keys[keyI], vals[valI]);
+        } RETRY_E(true);
+
+        TRANSACTION_E {
+            assert(art.lookup(keys[keyI]) == vals[valI]);
+        } RETRY_E(true);
         auto eraseI = rand_int() % NVALS;
-        art.insert(keys[keyI], vals[valI]);
         assert(art.lookup(keys[keyI]) == vals[valI]);
         art.erase(keys[eraseI]);
     }
-    } RETRY_E(true);
+}
+
+void doBenchErase(int i) {
+    TThread::set_id(i);
+    for (int i = 0; i < NVALS/10; i++) {
+        auto eraseI = rand_int() % NVALS;
+        TRANSACTION_E {
+            art.erase(keys[eraseI]);
+        } RETRY_E(true);
+        TRANSACTION_E {
+            assert(art.lookup(keys[eraseI]) == 0);
+        } RETRY_E(true);
+    }
 }
 
 int main() {
@@ -62,7 +79,15 @@ int main() {
     std::clock_t start;
     start = std::clock();
     for (int i = 0; i < NTHREAD; i++) {
-        threads[i] = std::thread(doBench, i);
+        threads[i] = std::thread(doBenchInsert, i);
+    }
+
+    for (int i = 0; i < NTHREAD; i++) {
+        threads[i].join();
+    }
+
+    for (int i = 0; i < NTHREAD; i++) {
+        threads[i] = std::thread(doBenchErase, i);
     }
 
     for (int i = 0; i < NTHREAD; i++) {
