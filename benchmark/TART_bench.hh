@@ -15,18 +15,7 @@ struct tart_row {
     explicit tart_row(int v) : value(v) {}
 };
 
-struct tart_key {
-    uint64_t k;
-
-    explicit tart_key(uint64_t p_k) : k(p_k) {}
-    explicit tart_key(lcdf::Str& mt_key) { 
-        assert(mt_key.length() == sizeof(*this));
-        memcpy(this, mt_key.data(), mt_key.length());
-    }
-    operator lcdf::Str() const {
-        return lcdf::Str((char *)this, sizeof(*this));
-    }
-};
+typedef std::string tart_key;
 
 template <typename DBParams>
 class tart_db {
@@ -53,7 +42,7 @@ template <typename DBParams>
 void initialize_db(tart_db<DBParams>& db, size_t db_size) {
     db.table().thread_init();
     for (size_t i = 0; i < db_size; i += 2)
-        db.table().nontrans_put(tart_key(i), tart_row(0));
+        db.table().nontrans_put(std::to_string(i), tart_row(0));
     db.size() = db_size;
 }
 
@@ -65,12 +54,12 @@ public:
         TRANSACTION_E {
             bool success, found;
             const void *value;
-            std::tie(success, found, std::ignore, value) = db.table().select_row(tart_key(key), RowAccess::ObserveValue);
+            std::tie(success, found, std::ignore, value) = db.table().select_row(std::to_string(key), RowAccess::ObserveValue);
             if (success) {
                 if (found) {
-                  std::tie(success, found) = db.table().delete_row(tart_key(key));
+                  std::tie(success, found) = db.table().delete_row(std::to_string(key));
                 } else {
-                  std::tie(success, found) = db.table().insert_row(tart_key(key), Sto::tx_alloc<tart_row>());
+                  std::tie(success, found) = db.table().insert_row(std::to_string(key), Sto::tx_alloc<tart_row>());
                 }
             }
         } RETRY_E(true);
