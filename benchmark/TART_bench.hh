@@ -7,22 +7,15 @@
 
 namespace tart_bench {
 
-struct tart_row {
-    enum class NamedColumn : int { value = 0 };
-    int value;
-
-    tart_row() {}
-    explicit tart_row(int v) : value(v) {}
-};
-
 typedef std::string tart_key;
+typedef uintptr_t tart_row;
 
 template <typename DBParams>
 class tart_db {
 public:
     template <typename K, typename V>
-    using OIndex = bench::ordered_index<K, V, DBParams>;
-    typedef OIndex<tart_key, tart_row> table_type;
+    using TIndex = bench::tart_index<K, V, DBParams>;
+    typedef TIndex<tart_key, tart_row> table_type;
 
     table_type& table() {
         return tbl_;
@@ -41,8 +34,8 @@ private:
 template <typename DBParams>
 void initialize_db(tart_db<DBParams>& db, size_t db_size) {
     db.table().thread_init();
-    for (size_t i = 0; i < db_size; i += 2)
-        db.table().nontrans_put(std::to_string(i), tart_row(0));
+    for (size_t i = 0; i < db_size; i++)
+        db.table().nontrans_put(std::to_string(i), (tart_row)rand());
     db.size() = db_size;
 }
 

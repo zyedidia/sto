@@ -22,8 +22,8 @@ static const Clp_Option options[] = {
 
 int main(int argc, const char * const *argv) {
     typedef db_params::db_default_params params;
-    typedef tart_bench::tart_runner<params> r_type_nopred;
-    typedef tart_bench::tart_db<params> db_type_nopred;
+    typedef tart_bench::tart_runner<params> r_type;
+    typedef tart_bench::tart_db<params> db_type;
 
     using tart_bench::initialize_db;
 
@@ -56,43 +56,22 @@ int main(int argc, const char * const *argv) {
         return -1;
     db_params::constants::processor_tsc_frequency = freq;
 
-    db_type_nopred db_nopred;
+    db_type db;
     const size_t db_size = 256;
-    initialize_db(db_nopred, db_size);
+    initialize_db(db, db_size);
 
     bench::db_profiler prof(false/*don't spawn perf*/);
     auto nthreads = p.num_threads;
     auto time_limit = p.time_limit;
     std::cout << "Number of threads: " << nthreads << std::endl;
 
-    r_type_nopred r_nopred(nthreads, time_limit, db_nopred);
+    r_type runner(nthreads, time_limit, db);
 
     size_t ncommits;
 
-    pthread_t advancer;
-    pthread_create(&advancer, NULL, Transaction::epoch_advancer, NULL);
-    pthread_detach(advancer);
-
     prof.start(Profiler::perf_mode::record);
-    ncommits = r_nopred.run();
+    ncommits = runner.run();
     prof.finish(ncommits);
-
-    auto counters = Transaction::txp_counters_combined();
-    auto ndreq = counters.p(txp_rcu_del_req);
-    auto ndareq = counters.p(txp_rcu_delarr_req);
-    auto nfreq = counters.p(txp_rcu_free_req);
-    auto ndimpl = counters.p(txp_rcu_del_impl);
-    auto ndaimpl = counters.p(txp_rcu_delarr_impl);
-    auto nfimpl = counters.p(txp_rcu_free_impl);
-
-    auto total_reqs = ndreq + ndareq + nfreq;
-    auto total_impls = ndimpl + ndaimpl + nfimpl;
-
-    printf("STO profile counters: %d\n", STO_PROFILE_COUNTERS);
-    printf("RCU dealloc requests: %llu\n", total_reqs);
-    printf("dealloc reqs/commit:  %.2lf\n", 1. * total_reqs / ncommits);
-    printf("RCU dealloc calls:    %llu\n", total_impls);
-    printf("dealloc calls/commit: %.2lf\n", 1. * total_impls / ncommits);
 
     return 0;
 }
