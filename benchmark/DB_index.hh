@@ -15,7 +15,6 @@
 
 #include <vector>
 #include "VersionSelector.hh"
-#include "TART_index.hh"
 
 namespace bench {
 

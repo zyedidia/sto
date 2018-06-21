@@ -55,6 +55,7 @@
 /micro_bench
 /wiki_bench
 /voter_bench
+/tart_bench
 /unit-swisstarray
 /unit-swisstgeneric
 /perf.data

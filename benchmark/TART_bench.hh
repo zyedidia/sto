@@ -1,6 +1,7 @@
 #include <thread>
 
 #include "DB_index.hh"
+#include "TART_index.hh"
 #include "TBox.hh"
 #include "TCounter.hh"
 #include "DB_params.hh"
