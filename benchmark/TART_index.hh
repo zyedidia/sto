@@ -54,10 +54,10 @@ public:
     }
 
     bool lock(TransItem& item, Transaction& txn) {
-        art.lock(item, txn);
+        return art.lock(item, txn);
     }
     bool check(TransItem& item, Transaction& txn) {
-        art.check(item, txn);
+        return art.check(item, txn);
     }
     void install(TransItem& item, Transaction& txn) {
         art.install(item, txn);
