@@ -49,15 +49,13 @@ public:
             bool success, found;
             uintptr_t value;
             std::tie(success, found, std::ignore, value) = db.table().select_row(std::to_string(key));
-            /*
             if (success) {
                 if (found) {
                   std::tie(success, found) = db.table().delete_row(std::to_string(key));
                 } else {
-                  std::tie(success, found) = db.table().insert_row(std::to_string(key), (tart_row)Sto::tx_alloc<tart_row>());
+                  std::tie(success, found) = db.table().insert_row(std::to_string(key), *Sto::tx_alloc<tart_row>());
                 }
             }
-            */
         } RETRY_E(true);
     }
 

@@ -24,8 +24,8 @@ public:
     
     tart_index() {
         art = TART();
-        static_assert(std::is_base_of<std::string, key_type>::value, "key must be std::string");
-        //static_assert(std::is_base_of<uintptr_t, value_type>::value, "value must be uintptr_t");
+        static_assert(std::is_base_of<std::string, K>::value, "key must be std::string");
+        //static_assert(std::is_base_of<uintptr_t, V>::value, "value must be uintptr_t");
     }
     ~tart_index() {}
 
@@ -35,6 +35,7 @@ public:
         return sel_return_type(true, true, 0, ret);
     }
     ins_return_type insert_row(const key_type& k, value_type& v, bool overwrite = false) {
+        (void)overwrite;
         art.insert(k, v);
         return ins_return_type(true, false);
     }
