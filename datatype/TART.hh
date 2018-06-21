@@ -84,7 +84,7 @@ public:
 
     Value nonTransGet(Key k) {
         art_leaf* l = art_search(&root_.access(), c_str(k), k.length());
-        return l->value;
+        return (Value) l->value;
     }
     void nonTransPut(Key k, Value v) {
         art_insert(&root_.access(), c_str(k), k.length(), (void*) v, nullptr);
