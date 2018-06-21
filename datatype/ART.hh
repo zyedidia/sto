@@ -1085,9 +1085,9 @@ art_leaf* art_insert(art_tree *t, const unsigned char *key, int key_len, void *v
     if (!old_val) {
         t->size++;
         // printf("new insert\n");
-        *new_insert = true;
+        if (new_insert) *new_insert = true;
     } else {
-        *new_insert = false;
+        if (new_insert) *new_insert = false;
     }
     // printf("art insert returning %p, new insert is %d\n", new_leaf, *new_insert);
     return new_leaf;

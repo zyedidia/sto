@@ -82,6 +82,13 @@ public:
         item.add_write(0);
     }
 
+    Value nonTransGet(Key k) {
+        return art_search(&root_.access(), c_str(k), k.length());
+    }
+    void nonTransPut(Key k, Value v) {
+        art_insert(&root_.access(), c_str(k), k.length(), (void*) v, nullptr);
+    }
+
     bool lock(TransItem& item, Transaction& txn) override {
         return vers_.is_locked_here() || txn.try_lock(item, vers_);
     }
