@@ -33,7 +33,7 @@ private:
 
 template <typename DBParams>
 void initialize_db(tart_db<DBParams>& db, size_t db_size) {
-    db.table().thread_init();
+    //db.table().thread_init();
     for (size_t i = 0; i < db_size; i++)
         db.table().nontrans_put(std::to_string(i), (tart_row)rand());
     db.size() = db_size;
@@ -46,15 +46,17 @@ public:
     void run_txn(size_t key) {
         TRANSACTION_E {
             bool success, found;
-            const void *value;
-            std::tie(success, found, std::ignore, value) = db.table().select_row(std::to_string(key), RowAccess::ObserveValue);
+            uintptr_t value;
+            std::tie(success, found, std::ignore, value) = db.table().select_row(std::to_string(key));
+            /*
             if (success) {
                 if (found) {
                   std::tie(success, found) = db.table().delete_row(std::to_string(key));
                 } else {
-                  std::tie(success, found) = db.table().insert_row(std::to_string(key), Sto::tx_alloc<tart_row>());
+                  std::tie(success, found) = db.table().insert_row(std::to_string(key), (tart_row)Sto::tx_alloc<tart_row>());
                 }
             }
+            */
         } RETRY_E(true);
     }
 
@@ -82,7 +84,7 @@ public:
 private:
     void runner_thread(int runner_id, size_t& committed_txns) {
         ::TThread::set_id(runner_id);
-        db.table().thread_init();
+        //db.table().thread_init();
         std::mt19937 gen(runner_id);
         std::uniform_int_distribution<uint64_t> dist(0, db.size() - 1);
 

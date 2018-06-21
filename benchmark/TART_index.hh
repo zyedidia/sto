@@ -25,7 +25,7 @@ public:
     tart_index() {
         art = TART();
         static_assert(std::is_base_of<std::string, key_type>::value, "key must be std::string");
-        static_assert(std::is_base_of<uintptr_t, value_type>::value, "value must be uintptr_t");
+        //static_assert(std::is_base_of<uintptr_t, value_type>::value, "value must be uintptr_t");
     }
     ~tart_index() {}
 
