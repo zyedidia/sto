@@ -61,6 +61,7 @@ public:
     }
 
     void transPut(Key k, Value v) {
+        printf("INSERT\n");
         auto item = Sto::item(this, k);
         item.add_write(v);
         item.clear_flags(deleted_bit);

@@ -14,11 +14,7 @@ std::string absentkey2 = "willbewritten";
 TART aTART;
 
 void CleanATART() {
-    {
-        TransactionGuard t;
-        aTART.erase(absentkey2);
-        aTART.erase(absentkey1);
-    }
+    aTART = TART();
 }
 
 void ReadK1WriteK2() {
