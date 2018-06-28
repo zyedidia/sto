@@ -14,13 +14,12 @@ class TART : public TObject {
 public:
     typedef std::string TKey;
     typedef uintptr_t TVal;
-    typedef std::pair<TID, ART_OLC::N*> item_key;
+    typedef std::pair<TID, ART_OLC::N*> item_val;
 
     struct Element {
         TKey key;
         TVal val;
         TVersion vers;
-        Element* next;
     };
 
     static void loadKey(TID tid, Key &key) {
@@ -28,22 +27,11 @@ public:
         key.set(e->key.c_str(), e->key.size());
     }
 
-    static TVal loadValue(TID tid) {
-        Element* e = (Element*) tid;
-        return e->val;
-    }
-
-    static TVersion loadVers(TID tid) {
-        Element* e = (Element*) tid;
-        return e->vers;
-    }
-
     typedef typename std::conditional<true, TVersion, TNonopaqueVersion>::type Version_type;
     typedef typename std::conditional<true, TWrapped<TVal>, TNonopaqueWrapped<TVal>>::type wrapped_type;
 
-    static constexpr TransItem::flags_type absent_bit = TransItem::user0_bit;
-    static constexpr TransItem::flags_type newleaf_bit = TransItem::user0_bit<<1;
-    static constexpr TransItem::flags_type head_bit = TransItem::user0_bit<<2;
+    // static constexpr TransItem::flags_type absent_bit = TransItem::user0_bit;
+    // static constexpr TransItem::flags_type newleaf_bit = TransItem::user0_bit<<1;
     // static constexpr TransItem::flags_type deleted_bit = TransItem::user0_bit<<2;
 
     TART() {
@@ -51,23 +39,9 @@ public:
     }
 
     TVal transGet(TKey k) {
-        auto headItem = Sto::item(this, -1);
-        headItem.add_flags(head_bit);
-        Element* next = nullptr;
-        if (headItem.has_write()) {
-            next = headItem.template write_value<Element*>();
-        }
-        bool found;
-        while (next) {
-            if (next->key.compare(k) == 0) {
-                return next->val;
-            }
-            next = next->next;
-        }
         Key key;
         key.set(k.c_str(), k.size());
         auto r = root_.access().lookup(key);
-        auto item = Sto::item(this, r);
         if ((Element*) r.first) {
             Element* e = (Element*) r.first;
             e->vers.observe_read(item);
@@ -85,36 +59,19 @@ public:
     }
 
     void transPut(TKey k, TVal v) {
-        auto headItem = Sto::item(this, -1);
-        headItem.add_flags(head_bit);
-        Element* next = nullptr;
-        if (headItem.has_write()) {
-            next = headItem.template write_value<Element*>();
-        }
-        bool found;
-        while (next) {
-            if (next->key.compare(k) == 0) {
-                auto item = Sto::item(this, next);
-                item.add_write(v);
-                // item.clear_flags(deleted_bit);
-                next->val = v;
-                return;
-            }
-            next = next->next;
-        }
-        Element* e = new Element();
-        e->key = k;
-        e->val = v;
-        item_key r = {(TID) e, nullptr};
-        auto item = Sto::item(this, r);
-
-        if (headItem.has_write()) {
-            e->next = headItem.template write_value<Element*>();
+        auto item = Sto::item(this, k);
+        if (item.has_write()) {
+            item_val i = item.template write_value<item_val>();
+            Element* e = (Element*) i.first;
+            e->key = k;
+            e->val = v;
         } else {
-            e->next = nullptr;
+            Element* e = new Element();
+            e->key = k;
+            e->val = v;
+            item_val r = {(TID) e, nullptr};
+            item.add_write<item_val>(r);
         }
-        headItem.add_write(e);
-        item.add_write(v);
         // item.clear_flags(deleted_bit);
     }
 
@@ -123,43 +80,30 @@ public:
     }
 
     void erase(TKey k) {
-        auto headItem = Sto::item(this, -1);
-        headItem.add_flags(head_bit);
-        Element* next = nullptr;
-        if (headItem.has_write()) {
-            next = headItem.template write_value<Element*>();
-        }
-        bool found;
-        while (next) {
-            if (next->key.compare(k) == 0) {
-                auto item = Sto::item(this, next);
-                item.add_write(0);
-                // item.add_flags(deleted_bit);
-                next->val = 0;
-                return;
-            }
-            next = next->next;
-        }
-        Element* e = new Element();
-        e->key = k;
-        e->val = 0;
-        item_key r = {(TID) e, nullptr};
-        auto item = Sto::item(this, r);
-
-        if (headItem.has_write()) {
-            e->next = headItem.template write_value<Element*>();
+        auto item = Sto::item(this, k);
+        if (item.has_write()) {
+            item_val i = item.template write_value<item_val>();
+            Element* e = (Element*) i.first;
+            e->key = k;
+            e->val = 0;
         } else {
-            e->next = nullptr;
+            Element* e = new Element();
+            e->key = k;
+            e->val = 0;
+            item_val r = {(TID) e, nullptr};
+            item.add_write<item_val>(r);
         }
-        headItem.add_write(e);
-        item.add_write(0);
         // item.add_flags(deleted_bit);
     }
 
     bool lock(TransItem& item, Transaction& txn) override {
         printf("lock\n");
-        item_key r = item.template key<item_key>();
-        if (item.has_flag(head_bit)) { return true; }
+        item_val r;
+        if (item.has_write()) {
+            r = item.template write_value<item_val>();
+        } else {
+            r = item.template read_value<item_val>();
+        }
         Element* e = (Element*) r.first;
         if (e == nullptr) {
             return txn.try_lock(item, r.second->vers);
@@ -169,8 +113,12 @@ public:
     }
     bool check(TransItem& item, Transaction& txn) override {
         printf("check\n");
-        item_key r = item.template key<item_key>();
-        if (item.has_flag(head_bit)) { return true; }
+        item_val r;
+        if (item.has_write()) {
+            r = item.template write_value<item_val>();
+        } else {
+            r = item.template read_value<item_val>();
+        }
         if (item.has_flag(absent_bit)) {
             // written items are not checked
             // if an item was read w.o absent bit and is no longer found, abort
@@ -181,13 +129,13 @@ public:
         return e->vers.cp_check_version(txn, item);
     }
     void install(TransItem& item, Transaction& txn) override {
-        item_key r = item.template key<item_key>();
+        printf("install\n");
+        item_val r = item.template write_value<item_val>();
 
         // if (item.has_flag(deleted_bit)) {
         //     art_delete(&root_.access(), c_str(key), key.length());
         //     txn.set_version(vers_);
         // } else {
-        if (item.has_flag(head_bit)) { return; }
         if (r.first) {
             Element* e = (Element*) r.first;
             Key art_key;
@@ -196,12 +144,7 @@ public:
             Element* ret_element = (Element*) ret.first;
 
             if (ret_element == nullptr) {
-                bool new_insert = false;
-                if (!Sto::item(this, -1).has_flag(newleaf_bit)) {
-                    new_insert = true;
-                    Sto::item(this, -1).clear_flags(newleaf_bit);
-                }
-                root_.access().insert(art_key, (TID) e, &new_insert, txn);
+                root_.access().insert(art_key, (TID) e, nullptr, txn);
             } else {
                 // update
                 ret_element->val = e->val;
@@ -210,14 +153,17 @@ public:
         }
     }
     void unlock(TransItem& item) override {
-        Element* e = item.template key<Element*>();
-        if (item.has_flag(head_bit)) { return; }
+        printf("unlock\n");
+        item_val r;
+        if (item.has_write()) {
+            r = item.template write_value<item_val>();
+        } else {
+            r = item.template read_value<item_val>();
+        }
+        Element* e = (Element*) r.first;
         if (e != 0) {
             e->vers.cp_unlock(item);
         }
-        // Sto::item(this, -1).clear_flags(deleted_bit);
-        Sto::item(this, -1).clear_flags(newleaf_bit);
-        Sto::item(this, -1).clear_flags(absent_bit);
     }
     void print(std::ostream& w, const TransItem& item) const override {
         w << "{TART<" << typeid(int).name() << "> " << (void*) this;
