@@ -337,7 +337,7 @@ namespace ART_OLC {
         return 0;
     }
 
-    void Tree::insert(const Key &k, TID tid, bool* new_insert) {
+    void Tree::insert(const Key &k, TID tid, bool* new_insert, Transaction& txn) {
         // EpocheGuard epocheGuard(epocheInfo);
         restart:
         bool needRestart = false;
@@ -377,6 +377,12 @@ namespace ART_OLC {
                     auto newNode = new N4(node->getPrefix(), nextLevel - level);
 
                     // 2)  add node and (tid, *k) as children
+                    if(new_insert && *new_insert) {
+                        this->absent_tvers_.lock_exclusive();
+                        printf("SET ABSENT VERSION 1\n");
+                        txn.set_version(this->absent_tvers_);
+                        this->absent_tvers_.unlock_exclusive();
+                    }
                     newNode->insert(k[nextLevel], N::setLeaf(tid));
                     newNode->insert(nonMatchingKey, node);
 
@@ -402,6 +408,12 @@ namespace ART_OLC {
             if (needRestart) goto restart;
 
             if (nextNode == nullptr) {
+                if(new_insert && *new_insert) {
+                    this->absent_tvers_.lock_exclusive();
+                    printf("SET ABSENT VERSION 2\n");
+                    txn.set_version(this->absent_tvers_);
+                    this->absent_tvers_.unlock_exclusive();
+                }
                 N::insertAndUnlock(node, v, parentNode, parentVersion, parentKey, nodeKey, N::setLeaf(tid), needRestart);
                 if (needRestart) goto restart;
                 if (new_insert) *new_insert = true;

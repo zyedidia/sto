@@ -39,8 +39,9 @@ public:
     typedef typename std::conditional<true, TVersion, TNonopaqueVersion>::type Version_type;
     typedef typename std::conditional<true, TWrapped<TVal>, TNonopaqueWrapped<TVal>>::type wrapped_type;
 
-    static constexpr TransItem::flags_type deleted_bit = TransItem::user0_bit;
-    static constexpr TransItem::flags_type absent_bit = TransItem::user0_bit<<1;
+    static constexpr TransItem::flags_type absent_bit = TransItem::user0_bit;
+    static constexpr TransItem::flags_type newleaf_bit = TransItem::user0_bit<<1;
+    // static constexpr TransItem::flags_type deleted_bit = TransItem::user0_bit<<2;
 
     TART() {
         root_.access().setLoadKey(TART::loadKey);
@@ -67,7 +68,8 @@ public:
             e->vers.observe_read(item);
             return e->val;
         } else {
-            absent_vers_.observe_read(item);
+            printf("OBSERVED ABSENT VERS\n");
+            root_.access().absent_tvers_.observe_read(item);
             item.add_flags(absent_bit);
             return 0;
         }
@@ -88,7 +90,7 @@ public:
             if (next->key.compare(k) == 0) {
                 auto item = Sto::item(this, next);
                 item.add_write(v);
-                item.clear_flags(deleted_bit);
+                // item.clear_flags(deleted_bit);
                 next->val = v;
                 return;
             }
@@ -106,7 +108,7 @@ public:
         }
         headItem.add_write(e);
         item.add_write(v);
-        item.clear_flags(deleted_bit);
+        // item.clear_flags(deleted_bit);
     }
 
     void insert(TKey k, TVal v) {
@@ -124,7 +126,7 @@ public:
             if (next->key.compare(k) == 0) {
                 auto item = Sto::item(this, next);
                 item.add_write(0);
-                item.add_flags(deleted_bit);
+                // item.add_flags(deleted_bit);
                 next->val = 0;
                 return;
             }
@@ -142,31 +144,33 @@ public:
         }
         headItem.add_write(e);
         item.add_write(0);
-        item.add_flags(deleted_bit);
+        // item.add_flags(deleted_bit);
     }
 
     bool lock(TransItem& item, Transaction& txn) override {
         Element* e = item.template key<Element*>();
         if ((long) e == 0xffffffff) { return true; }
         if (e == nullptr) {
-            return absent_vers_.is_locked_here() || txn.try_lock(item, absent_vers_);
+            return root_.access().absent_tvers_.is_locked_here() || txn.try_lock(item, root_.access().absent_tvers_);
         } else {
             return txn.try_lock(item, e->vers);
         }
     }
     bool check(TransItem& item, Transaction& txn) override {
+        printf("CHECK\n");
         Element* e = item.template key<Element*>();
         if ((long) e == 0xffffffff) { return true; }
         if (e == nullptr) {
             // written items are not checked
             // if an item was read w.o absent bit and is no longer found, abort
-            return item.has_flag(absent_bit) && absent_vers_.cp_check_version(txn, item);
+            return item.has_flag(absent_bit) && root_.access().absent_tvers_.cp_check_version(txn, item);
 
         }
         // if an item w/ absent bit and is found, abort
         return !item.has_flag(absent_bit) && e->vers.cp_check_version(txn, item);
     }
     void install(TransItem& item, Transaction& txn) override {
+        printf("INSTALL\n");
         Element* e = item.template key<Element*>();
 
         // if (item.has_flag(deleted_bit)) {
@@ -178,14 +182,14 @@ public:
             Key art_key;
             art_key.set(e->key.c_str(), e->key.size());
             Element* ret = (Element*) root_.access().lookup(art_key);
+
             if (ret == 0) {
-                if (!Sto::item(this, -1).has_flag(deleted_bit)) {
-                    if (!absent_vers_.is_locked_here()) absent_vers_.lock_exclusive();
-                    txn.set_version(absent_vers_);
-                    Sto::item(this, -1).add_flags(deleted_bit);
-                    absent_vers_.unlock_exclusive();
+                bool new_insert = false;
+                if (!Sto::item(this, -1).has_flag(newleaf_bit)) {
+                    new_insert = true;
+                    Sto::item(this, -1).clear_flags(newleaf_bit);
                 }
-                root_.access().insert(art_key, (TID) e, nullptr);
+                root_.access().insert(art_key, (TID) e, &new_insert, txn);
             } else {
                 // update
                 ret->val = e->val;
@@ -199,7 +203,9 @@ public:
         if (e != 0) {
             e->vers.cp_unlock(item);
         }
-        Sto::item(this, -1).clear_flags(deleted_bit);
+        // Sto::item(this, -1).clear_flags(deleted_bit);
+        Sto::item(this, -1).clear_flags(newleaf_bit);
+        Sto::item(this, -1).clear_flags(absent_bit);
     }
     void print(std::ostream& w, const TransItem& item) const override {
         w << "{TART<" << typeid(int).name() << "> " << (void*) this;
@@ -210,6 +216,6 @@ public:
         w << "}";
     }
 protected:
-    Version_type absent_vers_;
     TOpaqueWrapped<ART_OLC::Tree> root_;
+    Version_type absent_vers_ = root_.access().absent_tvers_;
 };

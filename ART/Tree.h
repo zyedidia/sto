@@ -6,6 +6,7 @@
 #ifndef ART_OPTIMISTICLOCK_COUPLING_N_H
 #define ART_OPTIMISTICLOCK_COUPLING_N_H
 #include "N.h"
+#include "Sto.hh"
 
 using namespace ART;
 
@@ -14,6 +15,7 @@ namespace ART_OLC {
     class Tree {
     public:
         using LoadKeyFunction = void (*)(TID tid, Key &key);
+        TVersion absent_tvers_;
 
     private:
         N *const root;
@@ -75,7 +77,7 @@ namespace ART_OLC {
         bool lookupRange(const Key &start, const Key &end, Key &continueKey, TID result[], std::size_t resultLen,
                          std::size_t &resultCount) const;
 
-        void insert(const Key &k, TID tid, bool* new_insert);
+        void insert(const Key &k, TID tid, bool* new_insert, Transaction& txn);
 
         void remove(const Key &k, TID tid);
     };
