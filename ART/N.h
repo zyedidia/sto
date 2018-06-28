@@ -10,8 +10,10 @@
 #include <stdint.h>
 #include <atomic>
 #include <string.h>
+#include <utility>
 #include <functional>
 #include "Key.h"
+#include "Sto.hh"
 
 namespace ART { }
 
@@ -63,6 +65,7 @@ namespace ART_OLC {
 
     public:
 
+        TVersion vers;
         NTypes getType() const;
 
         uint32_t getCount() const;

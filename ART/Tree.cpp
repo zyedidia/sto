@@ -26,7 +26,7 @@ namespace ART_OLC {
     //     return ThreadInfo(this->epoche);
     // }
 
-    TID Tree::lookup(const Key &k) const {
+    std::pair<TID, N*> Tree::lookup(const Key &k) const {
         // EpocheGuardReadonly epocheGuard(threadEpocheInfo);
         restart:
         bool needRestart = false;
@@ -45,13 +45,13 @@ namespace ART_OLC {
                 case CheckPrefixResult::NoMatch:
                     node->readUnlockOrRestart(v, needRestart);
                     if (needRestart) goto restart;
-                    return 0;
+                    return {0, node};
                 case CheckPrefixResult::OptimisticMatch:
                     optimisticPrefixMatch = true;
                     // fallthrough
                 case CheckPrefixResult::Match:
                     if (k.getKeyLen() <= level) {
-                        return 0;
+                        return {0, node};
                     }
                     parentNode = node;
                     node = N::getChild(k[level], parentNode);
@@ -59,7 +59,7 @@ namespace ART_OLC {
                     if (needRestart) goto restart;
 
                     if (node == nullptr) {
-                        return 0;
+                        return {0, 0};
                     }
                     if (N::isLeaf(node)) {
                         parentNode->readUnlockOrRestart(v, needRestart);
@@ -67,9 +67,9 @@ namespace ART_OLC {
 
                         TID tid = N::getLeaf(node);
                         if (level < k.getKeyLen() - 1 || optimisticPrefixMatch) {
-                            return checkKey(tid, k);
+                            return {checkKey(tid, k), nullptr};
                         }
-                        return tid;
+                        return {tid, nullptr};
                     }
                     level++;
             }
@@ -377,13 +377,11 @@ namespace ART_OLC {
                     auto newNode = new N4(node->getPrefix(), nextLevel - level);
 
                     // 2)  add node and (tid, *k) as children
-                    if(new_insert && *new_insert) {
-                        this->absent_tvers_.lock_exclusive();
-                        txn.set_version(this->absent_tvers_);
-                        this->absent_tvers_.unlock_exclusive();
-                    }
                     newNode->insert(k[nextLevel], N::setLeaf(tid));
                     newNode->insert(nonMatchingKey, node);
+                    newNode->vers.lock_exclusive();
+                    txn.set_version(newNode->vers);
+                    newNode->vers.unlock_exclusive();
 
                     // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
                     N::change(parentNode, parentKey, newNode);
@@ -407,12 +405,10 @@ namespace ART_OLC {
             if (needRestart) goto restart;
 
             if (nextNode == nullptr) {
-                if(new_insert && *new_insert) {
-                    this->absent_tvers_.lock_exclusive();
-                    txn.set_version(this->absent_tvers_);
-                    this->absent_tvers_.unlock_exclusive();
-                }
                 N::insertAndUnlock(node, v, parentNode, parentVersion, parentKey, nodeKey, N::setLeaf(tid), needRestart);
+                parentNode->vers.lock_exclusive();
+                txn.set_version(parentNode->vers);
+                parentNode->vers.unlock_exclusive();
                 if (needRestart) goto restart;
                 if (new_insert) *new_insert = true;
                 return;

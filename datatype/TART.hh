@@ -8,11 +8,13 @@
 #include "simple_str.hh"
 #include "print_value.hh"
 #include "../ART/Tree.h"
+#include "../ART/N.h"
 
 class TART : public TObject {
 public:
     typedef std::string TKey;
     typedef uintptr_t TVal;
+    typedef std::pair<TID, ART_OLC::N*> item_key;
 
     struct Element {
         TKey key;
@@ -41,6 +43,7 @@ public:
 
     static constexpr TransItem::flags_type absent_bit = TransItem::user0_bit;
     static constexpr TransItem::flags_type newleaf_bit = TransItem::user0_bit<<1;
+    static constexpr TransItem::flags_type head_bit = TransItem::user0_bit<<2;
     // static constexpr TransItem::flags_type deleted_bit = TransItem::user0_bit<<2;
 
     TART() {
@@ -49,6 +52,7 @@ public:
 
     TVal transGet(TKey k) {
         auto headItem = Sto::item(this, -1);
+        headItem.add_flags(head_bit);
         Element* next = nullptr;
         if (headItem.has_write()) {
             next = headItem.template write_value<Element*>();
@@ -62,13 +66,15 @@ public:
         }
         Key key;
         key.set(k.c_str(), k.size());
-        Element* e = (Element*) root_.access().lookup(key);
-        auto item = Sto::item(this, e);
-        if (e) {
+        auto r = root_.access().lookup(key);
+        auto item = Sto::item(this, r);
+        if ((Element*) r.first) {
+            Element* e = (Element*) r.first;
             e->vers.observe_read(item);
             return e->val;
         } else {
-            root_.access().absent_tvers_.observe_read(item);
+            ART_OLC::N* n = r.second;
+            if (n) n->vers.observe_read(item);
             item.add_flags(absent_bit);
             return 0;
         }
@@ -80,6 +86,7 @@ public:
 
     void transPut(TKey k, TVal v) {
         auto headItem = Sto::item(this, -1);
+        headItem.add_flags(head_bit);
         Element* next = nullptr;
         if (headItem.has_write()) {
             next = headItem.template write_value<Element*>();
@@ -98,7 +105,8 @@ public:
         Element* e = new Element();
         e->key = k;
         e->val = v;
-        auto item = Sto::item(this, e);
+        item_key r = {(TID) e, nullptr};
+        auto item = Sto::item(this, r);
 
         if (headItem.has_write()) {
             e->next = headItem.template write_value<Element*>();
@@ -116,6 +124,7 @@ public:
 
     void erase(TKey k) {
         auto headItem = Sto::item(this, -1);
+        headItem.add_flags(head_bit);
         Element* next = nullptr;
         if (headItem.has_write()) {
             next = headItem.template write_value<Element*>();
@@ -134,7 +143,8 @@ public:
         Element* e = new Element();
         e->key = k;
         e->val = 0;
-        auto item = Sto::item(this, e);
+        item_key r = {(TID) e, nullptr};
+        auto item = Sto::item(this, r);
 
         if (headItem.has_write()) {
             e->next = headItem.template write_value<Element*>();
@@ -147,40 +157,45 @@ public:
     }
 
     bool lock(TransItem& item, Transaction& txn) override {
-        Element* e = item.template key<Element*>();
-        if ((long) e == 0xffffffff) { return true; }
+        printf("lock\n");
+        item_key r = item.template key<item_key>();
+        if (item.has_flag(head_bit)) { return true; }
+        Element* e = (Element*) r.first;
         if (e == nullptr) {
-            return root_.access().absent_tvers_.is_locked_here() || txn.try_lock(item, root_.access().absent_tvers_);
+            return txn.try_lock(item, r.second->vers);
         } else {
             return txn.try_lock(item, e->vers);
         }
     }
     bool check(TransItem& item, Transaction& txn) override {
-        Element* e = item.template key<Element*>();
-        if ((long) e == 0xffffffff) { return true; }
-        if (e == nullptr) {
+        printf("check\n");
+        item_key r = item.template key<item_key>();
+        if (item.has_flag(head_bit)) { return true; }
+        if (item.has_flag(absent_bit)) {
             // written items are not checked
             // if an item was read w.o absent bit and is no longer found, abort
-            return item.has_flag(absent_bit) && root_.access().absent_tvers_.cp_check_version(txn, item);
-
+            return r.second->vers.cp_check_version(txn, item);
         }
+        Element* e = (Element*) r.first;
         // if an item w/ absent bit and is found, abort
-        return !item.has_flag(absent_bit) && e->vers.cp_check_version(txn, item);
+        return e->vers.cp_check_version(txn, item);
     }
     void install(TransItem& item, Transaction& txn) override {
-        Element* e = item.template key<Element*>();
+        item_key r = item.template key<item_key>();
 
         // if (item.has_flag(deleted_bit)) {
         //     art_delete(&root_.access(), c_str(key), key.length());
         //     txn.set_version(vers_);
         // } else {
-        if ((long) e == 0xffffffff) { return; }
-        if (e) {
+        if (item.has_flag(head_bit)) { return; }
+        if (r.first) {
+            Element* e = (Element*) r.first;
             Key art_key;
             art_key.set(e->key.c_str(), e->key.size());
-            Element* ret = (Element*) root_.access().lookup(art_key);
+            auto ret = root_.access().lookup(art_key);
+            Element* ret_element = (Element*) ret.first;
 
-            if (ret == 0) {
+            if (ret_element == nullptr) {
                 bool new_insert = false;
                 if (!Sto::item(this, -1).has_flag(newleaf_bit)) {
                     new_insert = true;
@@ -189,14 +204,14 @@ public:
                 root_.access().insert(art_key, (TID) e, &new_insert, txn);
             } else {
                 // update
-                ret->val = e->val;
-                txn.set_version_unlock(ret->vers, item);
+                ret_element->val = e->val;
+                txn.set_version_unlock(ret_element->vers, item);
             }
         }
     }
     void unlock(TransItem& item) override {
         Element* e = item.template key<Element*>();
-        if ((long) e == 0xffffffff) { return; }
+        if (item.has_flag(head_bit)) { return; }
         if (e != 0) {
             e->vers.cp_unlock(item);
         }
