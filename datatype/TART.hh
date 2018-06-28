@@ -68,7 +68,6 @@ public:
             e->vers.observe_read(item);
             return e->val;
         } else {
-            printf("OBSERVED ABSENT VERS\n");
             root_.access().absent_tvers_.observe_read(item);
             item.add_flags(absent_bit);
             return 0;
@@ -157,7 +156,6 @@ public:
         }
     }
     bool check(TransItem& item, Transaction& txn) override {
-        printf("CHECK\n");
         Element* e = item.template key<Element*>();
         if ((long) e == 0xffffffff) { return true; }
         if (e == nullptr) {
@@ -170,7 +168,6 @@ public:
         return !item.has_flag(absent_bit) && e->vers.cp_check_version(txn, item);
     }
     void install(TransItem& item, Transaction& txn) override {
-        printf("INSTALL\n");
         Element* e = item.template key<Element*>();
 
         // if (item.has_flag(deleted_bit)) {
@@ -217,5 +214,4 @@ public:
     }
 protected:
     TOpaqueWrapped<ART_OLC::Tree> root_;
-    Version_type absent_vers_ = root_.access().absent_tvers_;
 };

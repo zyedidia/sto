@@ -379,7 +379,6 @@ namespace ART_OLC {
                     // 2)  add node and (tid, *k) as children
                     if(new_insert && *new_insert) {
                         this->absent_tvers_.lock_exclusive();
-                        printf("SET ABSENT VERSION 1\n");
                         txn.set_version(this->absent_tvers_);
                         this->absent_tvers_.unlock_exclusive();
                     }
@@ -410,7 +409,6 @@ namespace ART_OLC {
             if (nextNode == nullptr) {
                 if(new_insert && *new_insert) {
                     this->absent_tvers_.lock_exclusive();
-                    printf("SET ABSENT VERSION 2\n");
                     txn.set_version(this->absent_tvers_);
                     this->absent_tvers_.unlock_exclusive();
                 }
