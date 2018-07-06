@@ -10,8 +10,8 @@
 #include "Transaction.hh"
 #include <unistd.h>
 
-#define NTHREAD 10
-#define NVALS 1000000
+#define NTHREAD 20
+#define NVALS 10000000
 
 TART art;
 

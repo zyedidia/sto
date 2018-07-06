@@ -108,7 +108,7 @@ public:
         item_parent.add_flags(parent_bit);
     }
 
-    void nonTransPut(TKey k, TVal v) {
+    void nonTransPut(const TKey& k, const TVal& v) {
         Key art_key;
         art_key.set(k.c_str(), k.size()+1);
         auto r = root_.access().lookup(art_key);

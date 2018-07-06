@@ -98,6 +98,9 @@ struct district_key {
     operator lcdf::Str() const {
         return lcdf::Str((const char *)this, sizeof(*this));
     }
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
+    }
 
     uint64_t d_w_id;
     uint64_t d_id;
@@ -159,6 +162,10 @@ struct customer_idx_key {
         return lcdf::Str((const char *)this, sizeof(*this));
     }
 
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
+    }
+
     uint64_t c_w_id;
     uint64_t c_d_id;
     char c_last[16];
@@ -191,6 +198,10 @@ struct customer_key {
     }
     operator lcdf::Str() const {
         return lcdf::Str((const char *)this, sizeof(*this));
+    }
+
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
     }
 
     uint64_t get_c_id() const {
@@ -256,6 +267,10 @@ struct history_key {
         return lcdf::Str((const char *)this, sizeof(*this));
     }
 
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
+    }
+
     uint64_t h_id;
 };
 
@@ -305,6 +320,10 @@ struct order_cidx_key {
         return lcdf::Str((const char *)this, sizeof(*this));
     }
 
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
+    }
+
     uint64_t o_w_id;
     uint64_t o_d_id;
     uint64_t o_c_id;
@@ -330,6 +349,10 @@ struct order_key {
     }
     operator lcdf::Str() const {
         return lcdf::Str((const char *)this, sizeof(*this));
+    }
+
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
     }
 
     uint64_t o_w_id;
@@ -376,6 +399,10 @@ struct orderline_key {
         return lcdf::Str((const char *)this, sizeof(*this));
     }
 
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
+    }
+
     uint64_t ol_w_id;
     uint64_t ol_d_id;
     uint64_t ol_o_id;
@@ -419,6 +446,10 @@ struct item_key {
         return lcdf::Str((const char *)this, sizeof(*this));
     }
 
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
+    }
+
     uint64_t i_id;
 };
 
@@ -454,6 +485,10 @@ struct stock_key {
     }
     operator lcdf::Str() const {
         return lcdf::Str((const char *)this, sizeof(*this));
+    }
+
+    std::string str() const {
+        return std::string(lcdf::Str((const char *)this, sizeof(*this)).data());
     }
 
     uint64_t s_w_id;
