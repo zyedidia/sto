@@ -8,30 +8,24 @@
 #include "Sto.hh"
 #include "TART.hh"
 #include "Transaction.hh"
+#include "jemalloc/jemalloc.h"
 #include <unistd.h>
 
 #define NTHREAD 10
 #define NVALS 1000000
 
-TART art;
+TART* art;
 
 void printMem() {
-    int tSize = 0, resident = 0, share = 0;
-    std::ifstream buffer("/proc/self/statm");
-    buffer >> tSize >> resident >> share;
-    buffer.close();
-
-    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024; // in case x86-64 is configured to use 2MB pages
-    double rss = resident * page_size_kb;
-    std::cout << "Memory - " << rss << " kB\n";
+    printf("numfrees %d\n", Transaction::txp_counters_combined().p(txp_rcu_del_impl));
 }
 
 std::vector<unsigned char> intToBytes(int paramInt)
 {
     std::vector<unsigned char> arrayOfByte(4);
-     for (int i = 0; i < 4; i++)
-         arrayOfByte[3 - i] = (paramInt >> (i * 8));
-     return arrayOfByte;
+    for (int i = 0; i < 4; i++)
+        arrayOfByte[3 - i] = (paramInt >> (i * 8));
+    return arrayOfByte;
 }
 
 void insertKey(int thread_id) {
@@ -41,7 +35,7 @@ void insertKey(int thread_id) {
         auto v = intToBytes(i);
         std::string str(v.begin(),v.end());
         TRANSACTION_E {
-            art.insert(str, i);
+            art->insert(str, i);
         } RETRY_E(true);
     }
 }
@@ -53,7 +47,7 @@ void lookupKey(int thread_id) {
         auto v = intToBytes(i);
         std::string str(v.begin(),v.end());
         TRANSACTION_E {
-            auto val = art.lookup(str);
+            auto val = art->lookup(str);
             assert((int) val == i);
         } RETRY_E(true);
     }
@@ -66,7 +60,7 @@ void eraseKey(int thread_id) {
         auto v = intToBytes(i);
         std::string str(v.begin(),v.end());
         TRANSACTION_E {
-            art.erase(str);
+            art->erase(str);
         } RETRY_E(true);
     }
 }
@@ -97,12 +91,16 @@ void words() {
 }
 
 int main() {
-    art = TART();
+    pthread_t advancer;
+    pthread_create(&advancer, NULL, Transaction::epoch_advancer, NULL);
+    pthread_detach(advancer);
+    art = new TART();
     printMem();
 
     // Build tree
     {
         auto starttime = std::chrono::system_clock::now();
+
         std::thread threads[NTHREAD];
         for (int i = 0; i < NTHREAD; i++) {
             threads[i] = std::thread(insertKey, i);
@@ -147,6 +145,8 @@ int main() {
                 std::chrono::system_clock::now() - starttime);
         printf("erase,%d,%f\n\n", NVALS, (NVALS * 1.0) / duration.count());
     }
+    delete art;
+
     printMem();
 
     // words();

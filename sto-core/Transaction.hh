@@ -174,6 +174,7 @@ enum txp {
     txp_hco_lock,
     txp_hco_invalid,
     txp_hco_abort,
+    txp_rcu_del_impl,
     // STO_PROFILE_COUNTERS > 1 only
     txp_total_n,
     txp_total_r,
@@ -394,9 +395,14 @@ public:
 
     static void* epoch_advancer(void*);
     template <typename T>
+    static void rcu_delete_cb(void* x) {
+        txp_account<txp_rcu_del_impl>(1);
+        ObjectDestroyer<T>::destroy_and_free(x);
+    }
+    template <typename T>
     static void rcu_delete(T* x) {
         auto& thr = tinfo[TThread::id()];
-        thr.rcu_set.add(thr.epoch, ObjectDestroyer<T>::destroy_and_free, x);
+        thr.rcu_set.add(thr.epoch, rcu_delete_cb<T>, x);
     }
     template <typename T>
     static void rcu_delete_array(T* x) {
