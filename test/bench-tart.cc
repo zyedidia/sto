@@ -17,7 +17,10 @@
 TART* art;
 
 void printMem() {
-    printf("numfrees %d\n", Transaction::txp_counters_combined().p(txp_rcu_del_impl));
+    printf("del_req %d\n", Transaction::txp_counters_combined().p(txp_rcu_del_req));
+    printf("del_impl %d\n", Transaction::txp_counters_combined().p(txp_rcu_del_impl));
+    printf("free_req %d\n", Transaction::txp_counters_combined().p(txp_rcu_free_req));
+    printf("free_impl %d\n", Transaction::txp_counters_combined().p(txp_rcu_free_impl));
 }
 
 std::vector<unsigned char> intToBytes(int paramInt)
@@ -91,11 +94,11 @@ void words() {
 }
 
 int main() {
+    art = new TART();
+    printMem();
     pthread_t advancer;
     pthread_create(&advancer, NULL, Transaction::epoch_advancer, NULL);
     pthread_detach(advancer);
-    art = new TART();
-    printMem();
 
     // Build tree
     {
@@ -145,7 +148,6 @@ int main() {
                 std::chrono::system_clock::now() - starttime);
         printf("erase,%d,%f\n\n", NVALS, (NVALS * 1.0) / duration.count());
     }
-    delete art;
 
     printMem();
 

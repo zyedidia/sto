@@ -174,7 +174,6 @@ enum txp {
     txp_hco_lock,
     txp_hco_invalid,
     txp_hco_abort,
-    txp_rcu_del_impl,
     // STO_PROFILE_COUNTERS > 1 only
     txp_total_n,
     txp_total_r,
@@ -190,6 +189,13 @@ enum txp {
     txp_hash_collision,
     txp_hash_collision2,
     txp_total_searched,
+    txp_rcu_del_req,
+    txp_rcu_del_impl,
+    txp_rcu_delarr_req,
+    txp_rcu_delarr_impl,
+    txp_rcu_free_req,
+    txp_rcu_free_impl,
+    txp_dealloc_performed,
 #if !STO_PROFILE_COUNTERS
     txp_count = 0
 #elif STO_PROFILE_COUNTERS == 1
@@ -393,25 +399,40 @@ public:
         }
     }
 
-    static void* epoch_advancer(void*);
     template <typename T>
     static void rcu_delete_cb(void* x) {
         txp_account<txp_rcu_del_impl>(1);
         ObjectDestroyer<T>::destroy_and_free(x);
     }
+
+    template <typename T>
+    static void rcu_delete_array_cb(void* x) {
+        txp_account<txp_rcu_delarr_impl>(1);
+        ObjectDestroyer<T>::destroy_and_free_array(x);
+    }
+
+    static void rcu_free_cb(void* x) {
+        txp_account<txp_rcu_free_impl>(1);
+        ::free(x);
+    }
+
+    static void* epoch_advancer(void*);
     template <typename T>
     static void rcu_delete(T* x) {
         auto& thr = tinfo[TThread::id()];
+        txp_account<txp_rcu_del_req>(1);
         thr.rcu_set.add(thr.epoch, rcu_delete_cb<T>, x);
     }
     template <typename T>
     static void rcu_delete_array(T* x) {
         auto& thr = tinfo[TThread::id()];
-        thr.rcu_set.add(thr.epoch, ObjectDestroyer<T>::destroy_and_free_array, x);
+        txp_account<txp_rcu_delarr_req>(1);
+        thr.rcu_set.add(thr.epoch, rcu_delete_array_cb<T>, x);
     }
     static void rcu_free(void* ptr) {
         auto& thr = tinfo[TThread::id()];
-        thr.rcu_set.add(thr.epoch, ::free, ptr);
+        txp_account<txp_rcu_free_req>(1);
+        thr.rcu_set.add(thr.epoch, rcu_free_cb, ptr);
     }
     static void rcu_call(void (*function)(void*), void* argument) {
         auto& thr = tinfo[TThread::id()];
@@ -499,7 +520,7 @@ private:
 #endif
         any_writes_ = any_nonopaque_ = may_duplicate_items_ = false;
         first_write_ = 0;
-        start_tid_ = commit_tid_ = 0;
+        start_tid_ = read_tid_ = commit_tid_ = 0;
         tictoc_tid_ = 0;
         buf_.clear();
 #if STO_DEBUG_ABORTS
@@ -816,6 +837,15 @@ public:
         return check_opacity(_TID);
     }
 
+    // transaction start
+    tid_type read_tid() const {
+        if (!read_tid_) {
+            fence();
+            read_tid_ = _TID;
+        }
+        return read_tid_;
+    }
+
     // committing
     tid_type commit_tid() const {
 #if !CONSISTENCY_CHECK
@@ -960,6 +990,7 @@ private:
     TransItem* tset_next_;
     unsigned tset_size_;
     mutable tid_type start_tid_;
+    mutable tid_type read_tid_;
     mutable tid_type commit_tid_;
     mutable tid_type tictoc_tid_; // commit tid reserved for TicToc
 public:
@@ -1094,6 +1125,10 @@ public:
         if (!in_progress())
             return false;
         return TThread::txn->try_commit();
+    }
+
+    static TransactionTid::type read_tid() {
+        return TThread::txn->read_tid();
     }
 
     static TransactionTid::type commit_tid() {
@@ -1271,3 +1306,4 @@ inline TransProxy& TransProxy::set_stash(T sdata) {
 std::ostream& operator<<(std::ostream& w, const Transaction& txn);
 std::ostream& operator<<(std::ostream& w, const TestTransaction& txn);
 std::ostream& operator<<(std::ostream& w, const TransactionGuard& txn);
+

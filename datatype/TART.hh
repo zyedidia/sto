@@ -146,6 +146,10 @@ public:
             item_parent.add_write(0);
             item_parent.add_flags(parent_bit);
             return;
+        } else {
+            auto item_parent = Sto::item(this, r.second);
+            item_parent.add_flags(parent_bit);
+            r.second->vers.observe_read(item_parent);
         }
     }
 
