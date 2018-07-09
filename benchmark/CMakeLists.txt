@@ -1,4 +1,4 @@
-add_library(db_index DB_index.cc DB_index.hh)
+add_library(db_index DB_index.cc DB_index.hh TART_index.hh)
 
 set(COMMON_HEADERS ../lib/sampling.hh)
 
