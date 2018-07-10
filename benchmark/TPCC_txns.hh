@@ -209,7 +209,7 @@ void tpcc_runner<DBParams>::run_txn_payment() {
 
     if (by_name) {
         last_name = ig.gen_customer_last_name_run();
-        q_c_id = 0;
+        q_c_id = 1;
     } else {
         q_c_id = ig.gen_customer_id();
     }
@@ -292,16 +292,16 @@ void tpcc_runner<DBParams>::run_txn_payment() {
         customer_idx_key ck0(q_c_w_id, q_c_d_id, last_name, 0x00 /*fill first name*/);
         customer_idx_key ck1(q_c_w_id, q_c_d_id, last_name, 0xff);
 
-        success = db.tbl_customer_index(q_c_w_id)
-                .template range_scan<decltype(scan_callback), false/*reverse*/>(ck0, ck1, scan_callback, RowAccess::ObserveValue);
+        // success = db.tbl_customer_index(q_c_w_id)
+        //         .template range_scan<decltype(scan_callback), false#<{(|reverse|)}>#>(ck0, ck1, scan_callback, RowAccess::ObserveValue);
         TXN_DO(success);
 
-        size_t n = matches.size();
-        always_assert(n > 0, "match size invalid");
-        size_t idx = n / 2;
-        if (n % 2 == 0)
-            idx -= 1;
-        q_c_id = matches[idx];
+        // size_t n = matches.size();
+        // always_assert(n > 0, "match size invalid");
+        // size_t idx = n / 2;
+        // if (n % 2 == 0)
+        //     idx -= 1;
+        // q_c_id = matches[idx];
 
     } else {
         always_assert(q_c_id != 0, "q_c_id invalid when selecting customer by c_id");
@@ -405,8 +405,8 @@ void tpcc_runner<DBParams>::run_txn_orderstatus() {
         customer_idx_key ck0(q_w_id, q_d_id, last_name, 0x00);
         customer_idx_key ck1(q_w_id, q_d_id, last_name, 0xff);
 
-        success = db.tbl_customer_index(q_w_id)
-                .template range_scan<decltype(scan_callback), false/*reverse*/>(ck0, ck1, scan_callback, RowAccess::ObserveValue);
+        // success = db.tbl_customer_index(q_w_id)
+        //         .template range_scan<decltype(scan_callback), false#<{(|reverse|)}>#>(ck0, ck1, scan_callback, RowAccess::ObserveValue);
         TXN_DO(success);
 
         size_t n = matches.size();
@@ -443,8 +443,8 @@ void tpcc_runner<DBParams>::run_txn_orderstatus() {
     order_cidx_key k0(q_w_id, q_d_id, q_c_id, 0);
     order_cidx_key k1(q_w_id, q_d_id, q_c_id, std::numeric_limits<uint64_t>::max());
 
-    success = db.tbl_order_customer_index(q_w_id)
-            .template range_scan<decltype(scan_callback), true/*reverse*/>(k0, k1, scan_callback, RowAccess::ObserveExists, false, 1/*reverse scan for only 1 item*/);
+    // success = db.tbl_order_customer_index(q_w_id)
+    //         .template range_scan<decltype(scan_callback), true#<{(|reverse|)}>#>(k0, k1, scan_callback, RowAccess::ObserveExists, false, 1#<{(|reverse scan for only 1 item|)}>#);
     TXN_DO(success);
 
     if (cus_o_id > 0) {
@@ -470,8 +470,8 @@ void tpcc_runner<DBParams>::run_txn_orderstatus() {
         orderline_key olk0(q_w_id, q_d_id, cus_o_id, 0);
         orderline_key olk1(q_w_id, q_d_id, cus_o_id, std::numeric_limits<uint64_t>::max());
 
-        success = db.tbl_orderlines(q_w_id)
-                .template range_scan<decltype(ol_scan_callback), true/*reverse*/>(olk0, olk1, ol_scan_callback, RowAccess::ObserveValue);
+        // success = db.tbl_orderlines(q_w_id)
+        //         .template range_scan<decltype(ol_scan_callback), true#<{(|reverse|)}>#>(olk0, olk1, ol_scan_callback, RowAccess::ObserveValue);
         TXN_DO(success);
     } else {
         // order doesn't exist, simply commit the transaction

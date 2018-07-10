@@ -747,22 +747,22 @@ protected:
             }
         }
 
-        bool visit_value(const Masstree::key<uint64_t>& key, internal_elem *e, threadinfo&) {
-            if (this->boundary_compar_) {
-                if ((Reverse && (boundary_ >= key.full_string())) ||
-                    (!Reverse && (boundary_ <= key.full_string())))
-                    return false;
-            }
-            bool visited = false;
-            if (!value_callback_(key.full_string(), e, visited)) {
-                scan_succeeded_ = false;
-                return false;
-            } else {
-                if (!visited)
-                    scan_succeeded_ = false;
-                return visited;
-            }
-        }
+        // bool visit_value(const Masstree::key<uint64_t>& key, internal_elem *e, threadinfo&) {
+        //     if (this->boundary_compar_) {
+        //         if ((Reverse && (boundary_ >= key.full_string())) ||
+        //             (!Reverse && (boundary_ <= key.full_string())))
+        //             return false;
+        //     }
+        //     bool visited = false;
+        //     if (!value_callback_(key.full_string(), e, visited)) {
+        //         scan_succeeded_ = false;
+        //         return false;
+        //     } else {
+        //         if (!visited)
+        //             scan_succeeded_ = false;
+        //         return visited;
+        //     }
+        // }
 
         Str boundary_;
         bool boundary_compar_;
