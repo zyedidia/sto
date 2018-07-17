@@ -17,7 +17,7 @@ public:
     typedef ART_OLC::N Node;
 
     struct Element {
-        TKey key;
+        Key key;
         TVal val;
         TVersion vers;
         bool poisoned;
@@ -25,21 +25,12 @@ public:
 
     static void loadKey(TID tid, Key &key) {
         Element* e = (Element*) tid;
-        key.setKeyLen(e->key.second);
-        if (e->key.second > 8) {
-            key.set(e->key.first, e->key.second);
-        } else {
-            memcpy(&key[0], &e->key.first, e->key.second);
-        }
+        key = e->key;
     }
 
     static void make_key(const char* tkey, Key &key, int len) {
         key.setKeyLen(len);
-        if (len > 8) {
-            key.set(tkey, len);
-        } else {
-            memcpy(&key[0], tkey, len);
-        }
+        key.set(tkey, len);
     }
 
     typedef typename std::conditional<true, TVersion, TNonopaqueVersion>::type Version_type;
@@ -119,16 +110,9 @@ public:
         }
 
         e = new Element();
-        if (k.second > 8) {
-            char* p = (char*) malloc(k.second);
-            memcpy(p, k.first, k.second);
-            e->key.first = p;
-        } else {
-            memcpy(&e->key.first, k.first, k.second);
-        }
+        e->key.set(k.first, k.second);
         e->val = v;
         e->poisoned = true;
-        e->key.second = k.second;
         bool success;
         root_.access().insert(art_key, (TID) e, &success);
         if (!success) {
@@ -154,15 +138,8 @@ public:
         }
 
         e = new Element();
-        if (k.second > 8) {
-            char* p = (char*) malloc(k.second);
-            memcpy(p, k.first, k.second);
-            e->key.first = p;
-        } else {
-            memcpy(&e->key.first, k.first, k.second);
-        }
+        e->key.set(k.first, k.second);
         e->val = v;
-        e->key.second = k.second;
         root_.access().insert(art_key, (TID) e, nullptr);
     }
 
@@ -228,7 +205,6 @@ public:
         int j = 0;
         for (int i = 0; i < resultsFound; i++) {
             Element* e = (Element*) art_result[i];
-            printf("%p: %p\n", e, e->key.first);
             auto item = Sto::item(this, e);
             if (item.has_flag(deleted_bit)) {
                 validResults--;
@@ -281,14 +257,7 @@ public:
         } else {
             Element* e = item.template key<Element*>();
             if (item.has_flag(deleted_bit)) {
-                Key art_key;
-                // art_key.set(e->key.first.c_str(), e->key.first.size()+1);
-                if (e->key.second > 8) {
-                    make_key(e->key.first, art_key, e->key.second);
-                } else {
-                    make_key((const char*) &e->key.first, art_key, e->key.second);
-                }
-                root_.access().remove(art_key, (TID) e);
+                root_.access().remove(e->key, (TID) e);
                 Transaction::rcu_delete(e);
                 return;
             }
@@ -316,13 +285,7 @@ public:
             return;
         }
         if (e->poisoned) {
-            Key art_key;
-            if (e->key.second > 8) {
-                make_key(e->key.first, art_key, e->key.second);
-            } else {
-                make_key((const char*) &e->key.first, art_key, e->key.second);
-            }
-            root_.access().remove(art_key, (TID) e);
+            root_.access().remove(e->key, (TID) e);
             Transaction::rcu_delete(e);
         }
     }

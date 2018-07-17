@@ -10,7 +10,7 @@
 using KeyLen = uint32_t;
 
 class Key {
-    static constexpr uint32_t stackLen = 128;
+    static constexpr uint32_t stackLen = 8;
     uint32_t len = 0;
 
 
@@ -24,7 +24,7 @@ public:
 
     Key(const Key &key) = delete;
 
-    Key(Key &&key);
+    // Key(Key &&key);
 
     void set(const char bytes[], const std::size_t length);
 
@@ -67,16 +67,16 @@ inline Key::~Key() {
     }
 }
 
-inline Key::Key(Key &&key) {
-    len = key.len;
-    if (len > stackLen) {
-        data = key.data;
-        key.data = nullptr;
-    } else {
-        memcpy(stackKey, key.stackKey, key.len);
-        data = stackKey;
-    }
-}
+// inline Key::Key(Key &&key) {
+//     len = key.len;
+//     if (len > stackLen) {
+//         data = key.data;
+//         key.data = nullptr;
+//     } else {
+//         memcpy(stackKey, key.stackKey, key.len);
+//         data = stackKey;
+//     }
+// }
 
 inline void Key::set(const char bytes[], const std::size_t length) {
     if (len > stackLen) {
