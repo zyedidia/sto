@@ -1454,11 +1454,13 @@ private:
     static void load_key(TID tid, Key& key) {
         internal_elem* e = (internal_elem*) tid;
         Str s = e->key;
-        key.set(s.data(), s.length());
+        key.set(s.data(), s.length()+1);
+        key[s.length()] = 0;
     }
 
     static void make_key(Str key, Key& art_key) {
-        art_key.set(key.data(), key.length());
+        art_key.set(key.data(), key.length()+1);
+        art_key[key.length()] = 0;
     }
 
     bool register_internode_version(node_type *node, nodeversion_value_type nodeversion) {

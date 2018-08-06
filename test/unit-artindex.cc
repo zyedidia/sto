@@ -102,9 +102,9 @@ public:
     tart_wrapper() {
     }
 
-    void insert(const char* key, uintptr_t val) {
-        insert({key, sizeof(key)}, val);
-    }
+    // void insert(const char* key, uintptr_t val) {
+    //     insert({key, sizeof(key)}, val);
+    // }
 
     void insert(lcdf::Str key, uintptr_t val) override {
         bool success;
@@ -112,9 +112,9 @@ public:
         if (!success) throw Transaction::Abort();
     }
 
-    uintptr_t lookup(const char* key) {
-        return lookup({key, sizeof(key)});
-    }
+    // uintptr_t lookup(const char* key) {
+    //     return lookup({key, sizeof(key)});
+    // }
 
     uintptr_t lookup(lcdf::Str key) override {
         uintptr_t ret;
@@ -131,9 +131,9 @@ public:
         return ret;
     }
 
-    void update(const char* key, uintptr_t val) {
-        update({key, sizeof(key)}, val);
-    }
+    // void update(const char* key, uintptr_t val) {
+    //     update({key, sizeof(key)}, val);
+    // }
 
     void update(lcdf::Str key, uintptr_t val) override {
         bool success;
@@ -146,9 +146,9 @@ public:
         oi.update_row(row, new_oiv);
     }
 
-    void erase(const char* key) {
-        erase({key, sizeof(key)});
-    }
+    // void erase(const char* key) {
+    //     erase({key, sizeof(key)});
+    // }
 
     void erase(lcdf::Str key) override {
         oi.delete_row(key);
@@ -571,7 +571,7 @@ void testLookupRange() {
     
     {
         TransactionGuard t;
-        art.insert("hello", 1);
+        art.insert("foobar", 1);
         art.insert("foo", 50);
         art.insert("bar", 75);
     }
