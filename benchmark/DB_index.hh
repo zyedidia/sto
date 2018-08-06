@@ -697,7 +697,7 @@ public:
 
     typedef typename ART_OLC::N node_type;
     // typedef typename table_type::node_type node_type;
-    typedef TNonopaqueVersion nodeversion_value_type;
+    typedef typename ART_OLC::N::Version_type nodeversion_value_type;
 
     typedef std::tuple<bool, bool, uintptr_t, const value_type*> sel_return_type;
     typedef std::tuple<bool, bool>                               ins_return_type;
@@ -780,8 +780,9 @@ public:
         bool ok = true;
         TransProxy row_item = Sto::item(this, item_key_t::row_item_key(e));
 
-        if (is_phantom(e, row_item))
+        if (is_phantom(e, row_item)) {
             goto abort;
+        }
 
         if (index_read_my_write) {
             if (has_delete(row_item)) {
@@ -1022,7 +1023,6 @@ public:
         auto node_callback = [&] (node_type* node) {
             return ((!phantom_protection) || register_internode_version(node, node->vers));
         };
-        printf("Reverse: %d\n", Reverse);
 
         auto cell_accesses = column_to_cell_accesses(value_container_type::map, accesses);
 
@@ -1071,7 +1071,8 @@ public:
         Key art_end;
         make_key(begin, art_begin);
         make_key(end, art_end);
-        return table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+        table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+        return true;
         // range_scanner<decltype(node_callback), decltype(value_callback), Reverse>
         //     scanner(end, node_callback, value_callback);
         // if (Reverse)
@@ -1088,7 +1089,7 @@ public:
         auto node_callback = [&] (node_type* node) {
             return ((!phantom_protection) || register_internode_version(node, node->vers));
         };
-        printf("Reverse: %d\n", Reverse);
+        // printf("Reverse: %d\n", Reverse);
 
         auto value_callback = [&] (const Key& key, TID t) {
             internal_elem* e = (internal_elem*) t;
@@ -1137,7 +1138,8 @@ public:
         Key art_end;
         make_key(begin, art_begin);
         make_key(end, art_end);
-        return table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+        table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+        return true;
         // range_scanner<decltype(node_callback), decltype(value_callback), Reverse>
         //         scanner(end, node_callback, value_callback);
         // if (Reverse)

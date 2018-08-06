@@ -6,7 +6,7 @@ namespace db_params {
 constexpr const char *db_params_id_names[] = {"none", "default", "opaque", "2pl", "adaptive", "swiss", "tictoc"};
 
 enum class db_params_id : int {
-    None = 0, Default, Opaque, TwoPL, Adaptive, Swiss, TicToc
+    None = 0, Default, Opaque, TwoPL, Adaptive, Swiss, TicToc, Custom
 };
 
 inline std::ostream &operator<<(std::ostream &os, const db_params_id &id) {

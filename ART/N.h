@@ -68,7 +68,8 @@ namespace ART_OLC {
         // static void freeLeaf(TID tid);
 
         bool valid = true;
-        TNonopaqueVersion vers;
+        using Version_type = TNonopaqueVersion;
+        Version_type vers;
 
         uint32_t getCount() const;
 

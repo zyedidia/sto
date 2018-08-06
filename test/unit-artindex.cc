@@ -6,7 +6,6 @@
 #include <cassert>
 #include <vector>
 #include "Sto.hh"
-#include "TART.hh"
 #include "Transaction.hh"
 #include <unistd.h>
 #include <random>
@@ -26,6 +25,13 @@ const char* checkkey = "check1";
 const char* checkkey2 = "check2";
 const char* checkkey3 = "check3";
 
+class db_test_params : public db_params::db_default_params {
+public:
+    static constexpr db_params::db_params_id Id = db_params::db_params_id::Custom;
+    static constexpr bool RdMyWr = true;
+    static constexpr bool Opaque = false;
+};
+
 class keyval_db {
 public:
     virtual void insert(lcdf::Str int_key, uintptr_t val) = 0;
@@ -41,7 +47,7 @@ public:
         uintptr_t val;
     };
 
-    typedef bench::ordered_index<lcdf::Str, oi_value, db_params::db_default_params> index_type;
+    typedef bench::ordered_index<lcdf::Str, oi_value, db_test_params> index_type;
     index_type oi;
 
     masstree_wrapper() {
@@ -57,7 +63,7 @@ public:
         uintptr_t ret;
         bool success;
         const oi_value* val;
-        std::tie(success, std::ignore, std::ignore, val) = oi.select_row(key, bench::RowAccess::None);
+        std::tie(success, std::ignore, std::ignore, val) = oi.select_row(key, bench::RowAccess::ObserveValue);
         if (!success) throw Transaction::Abort();
         if (!val) {
             ret = 0;
@@ -90,7 +96,7 @@ public:
         uintptr_t val;
     };
 
-    typedef bench::art_index<lcdf::Str, oi_value, db_params::db_default_params> index_type;
+    typedef bench::art_index<lcdf::Str, oi_value, db_test_params> index_type;
     index_type oi;
 
     tart_wrapper() {
@@ -115,7 +121,7 @@ public:
         bool success;
         bool found;
         const oi_value* val;
-        std::tie(success, std::ignore, std::ignore, val) = oi.select_row(key, bench::RowAccess::None);
+        std::tie(success, std::ignore, std::ignore, val) = oi.select_row(key, bench::RowAccess::ObserveValue);
         if (!success) throw Transaction::Abort();
         if (!val) {
             ret = 0;
@@ -317,26 +323,26 @@ void testUpgradeNode() {
 }
 
 void testUpgradeNode2() {
-    TART a;
+    wrapper_type a;
     {
         TransactionGuard t;
-        a.transPut("1", 1);
-        a.transPut("10", 1);
-        // a.transPut("11", 1);
+        a.insert("1", 1);
+        a.insert("10", 1);
+        // a.insert("11", 1);
     }
 
     TestTransaction t0(0);
-    a.transGet("13");
-    a.transPut("14", 1);
-    a.transPut("15",1);
-    a.transPut("16", 1);
+    a.lookup("13");
+    a.insert("14", 1);
+    a.insert("15",1);
+    a.insert("16", 1);
     assert(t0.try_commit());
 
     TestTransaction t1(1);
-    a.transGet("13");
-    a.transPut("14", 1);
-    a.transPut("15",1);
-    a.transPut("16", 1);
+    a.lookup("13");
+    a.insert("14", 1);
+    a.insert("15",1);
+    a.insert("16", 1);
 
     assert(t1.try_commit());
     printf("PASS: %s\n", __FUNCTION__); 
@@ -441,24 +447,24 @@ void testDowngradeNode() {
 }
 
 void testSplitNode() {
-    TART a;
+    wrapper_type a;
     {
         TransactionGuard t;
-        a.transPut("ab", 0);
-        a.transPut("1", 0);
+        a.insert("ab", 0);
+        a.insert("1", 0);
     }
 
     TestTransaction t0(0);
-    a.transGet("ad");
-    a.transPut("12", 1);
+    a.lookup("ad");
+    a.insert("12", 1);
 
     TestTransaction t1(1);
-    a.transGet("abc");
-    a.transPut("13", 1);
+    a.lookup("abc");
+    a.insert("13", 1);
 
     TestTransaction t2(2);
-    a.transPut("ad", 1);
-    a.transPut("abc", 1);
+    a.insert("ad", 1);
+    a.insert("abc", 1);
 
     assert(t2.try_commit());
     assert(!t0.try_commit());
@@ -468,19 +474,19 @@ void testSplitNode() {
 }
 
 void testSplitNode2() {
-    TART a;
+    wrapper_type a;
     {
         TransactionGuard t;
-        a.transPut("aaa", 0);
-        a.transPut("aab", 0);
+        a.insert("aaa", 0);
+        a.insert("aab", 0);
     }
 
     TestTransaction t0(0);
-    a.transGet("ab");
-    a.transPut("1", 0);
+    a.lookup("ab");
+    a.insert("1", 0);
 
     TestTransaction t1(1);
-    a.transPut("ab", 0);
+    a.insert("ab", 0);
 
     assert(t1.try_commit());
     assert(!t0.try_commit());
@@ -489,29 +495,75 @@ void testSplitNode2() {
 }
 
 void testEmptySplit() {
-    TART a;
+    wrapper_type a;
     {
         TransactionGuard t;
-        a.transPut("aaa", 1);
-        a.transPut("aab", 1);
+        a.insert("aaa", 1);
+        a.insert("aab", 1);
     }
 
     TestTransaction t0(0);
-    a.transGet("aac");
-    a.transPut("1", 0);
+    a.lookup("aac");
+    a.insert("1", 0);
 
     TestTransaction t1(1);
-    a.transRemove("aaa");
-    a.transRemove("aab");
+    a.erase("aaa");
+    a.erase("aab");
     assert(t1.try_commit());
 
     TestTransaction t2(2);
-    a.transPut("aac", 0);
+    a.insert("aac", 0);
     assert(t2.try_commit());
 
     assert(!t0.try_commit());
 
     printf("PASS: %s\n", __FUNCTION__); 
+}
+
+void testDoubleRead() {
+    wrapper_type a;
+
+    TestTransaction t0(0);
+    auto r = a.lookup("1");
+
+    TestTransaction t1(1);
+    a.insert("1", 50);
+    assert(t1.try_commit());
+
+    TestTransaction t2(2);
+    a.update("1", 100);
+    a.insert("2", 50);
+    assert(t2.try_commit());
+
+    t0.use();
+    try {
+        auto s = a.lookup("2");
+        assert(!t0.try_commit());
+    } catch (Transaction::Abort e) {
+    }
+
+    printf("PASS: %s\n", __FUNCTION__);
+}
+
+void testReadWrite() {
+    wrapper_type art;
+    {
+        TransactionGuard t;
+        art.insert("hello", 4);
+    }
+
+    TestTransaction t1(0);
+    auto r = art.lookup("hello");
+    art.insert("world", 1);
+
+    TestTransaction t2(1);
+    art.update("hello", 6);
+    assert(t2.try_commit());
+    t1.use();
+    auto s = art.lookup("hello");
+    assert(!t1.try_commit());
+
+    printf("PASS: %s\n", __FUNCTION__);
 }
 
 int main(int argc, char *argv[]) {
@@ -528,77 +580,8 @@ int main(int argc, char *argv[]) {
     testSplitNode();
     testSplitNode2();
     testEmptySplit();
-
-    // keyval_db* db;
-
-    // bool use_art = 1;
-    // if (argc > 1) {
-    //     use_art = atoi(argv[1]);
-    // }
-    //
-    // uint64_t key1 = 1;
-    // uint64_t key2 = 2;
-    // {
-    //     TransactionGuard t;
-    //     db->insert(key1, 123);
-    //     db->insert(key2, 321);
-    // }
-    //
-    // {
-    //     TransactionGuard t;
-    //     volatile auto x = db->lookup(key1);
-    //     volatile auto y = db->lookup(key2);
-    //     assert(x == 123);
-    //     assert(y == 321);
-    // }
-
-    // if (use_art) {
-    //     printf("ART\n");
-    //     db = new tart_wrapper();
-    // } else {
-    //     printf("Masstree\n");
-    //     db = new masstree_wrapper();
-    // }
-
-    // uint64_t checkkey = 256;
-    //
-    // {
-    //     TransactionGuard t;
-    //     db->insert(key1, 123);
-    //     db->insert(key2, 321);
-    // }
-    //
-    // {
-    //     TransactionGuard t;
-    //     volatile auto x = db->lookup(key1);
-    //     volatile auto y = db->lookup(key2);
-    //     db->insert(checkkey, 100);
-    //     assert(x == 123);
-    //     assert(y == 321);
-    // }
-    //
-    // {
-    //     TransactionGuard t;
-    //     db->erase(key1);
-    //     volatile auto x = db->lookup(key1);
-    //     db->insert(checkkey, 100);
-    //     printf("%d\n", x);
-    //     assert(x == 0);
-    // }
-    //
-    // {
-    //     TransactionGuard t;
-    //     volatile auto x = db->lookup(key1);
-    //     assert(x == 0);
-    //     db->insert(key1, 567);
-    // }
-    //
-    // {
-    //     TransactionGuard t;
-    //     volatile auto x = db->lookup(key1);
-    //     db->insert(checkkey, 100);
-    //     assert(x == 567);
-    // }
+    testDoubleRead();
+    testReadWrite();
 
     printf("Tests pass\n");
 }

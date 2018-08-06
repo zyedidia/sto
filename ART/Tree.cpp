@@ -103,7 +103,7 @@ namespace ART_OLC {
                 std::tuple<uint8_t, N *> children[256];
                 uint32_t childrenCount = 0;
                 N::getChildren(node, 0u, 255u, children, childrenCount);
-                observe_node(const_cast<N*>(node));
+                // observe_node(const_cast<N*>(node));
                 for (uint32_t i = 0; i < childrenCount; ++i) {
                     const N *n = std::get<1>(children[i]);
                     copy(n);
@@ -477,7 +477,7 @@ namespace ART_OLC {
 
                 level++;
 
-                assert(level < k.getKeyLen() && level < key.getKeyLen());
+                assert(level < k.getKeyLen() && level < key.getKeyLen()); // do not allow keys that are prefixes of other keys
 
                 uint32_t prefixLength = 0;
 
