@@ -1028,7 +1028,7 @@ public:
 
         auto cell_accesses = column_to_cell_accesses(value_container_type::map, accesses);
 
-        auto value_callback = [&] (const Key& key, TID t) {
+        auto value_callback = [&] (TID t) {
             printf("value callback\n");
             internal_elem* e = (internal_elem*) t;
             TransProxy row_item = index_read_my_write ? Sto::item(this, item_key_t::row_item_key(e))
@@ -1044,9 +1044,9 @@ public:
                 }
                 if (any_has_write) {
                     if (has_insert(row_item))
-                        callback(key_type(key), e->row_container.row);
+                        callback(e->key, e->row_container.row);
                     else
-                        callback(key_type(key), *(row_item.template raw_write_value<value_type *>()));
+                        callback(e->key, *(row_item.template raw_write_value<value_type *>()));
                     return true;
                 }
             }
@@ -1066,7 +1066,7 @@ public:
                 return true;
             }
 
-            callback(key_type(key), e->row_container.row);
+            callback(e->key, e->row_container.row);
             return true;
         };
 
@@ -1074,7 +1074,15 @@ public:
         Key art_end;
         make_key(begin, art_begin);
         make_key(end, art_end);
-        table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+
+        std::vector<TID> results;
+        table_.lookupRange(art_begin, art_end, results, node_callback);
+
+        for (int i = 0; i < std::min((size_t) limit, results.size()); i++) {
+            if (!value_callback(results[i])) {
+                return false;
+            }
+        }
         return true;
         // range_scanner<decltype(node_callback), decltype(value_callback), Reverse>
         //     scanner(end, node_callback, value_callback);
@@ -1093,23 +1101,20 @@ public:
             printf("observe node\n");
             return ((!phantom_protection) || register_internode_version(node, node->vers));
         };
-        // printf("Reverse: %d\n", Reverse);
 
-        auto value_callback = [&] (const Key& key, TID t) {
+        auto value_callback = [&] (TID t) {
             internal_elem* e = (internal_elem*) t;
             TransProxy row_item = index_read_my_write ? Sto::item(this, item_key_t::row_item_key(e))
                                                       : Sto::fresh_item(this, item_key_t::row_item_key(e));
-            printf("%d: frow item: %p\n", has_insert(row_item), row_item);
-
             if (index_read_my_write) {
                 if (has_delete(row_item)) {
                     return true;
                 }
                 if (has_row_update(row_item)) {
                     if (has_insert(row_item))
-                        callback(key_type(key), e->row_container.row);
+                        callback(e->key, e->row_container.row);
                     else
-                        callback(key_type(key), *(row_item.template raw_write_value<value_type *>()));
+                        callback(e->key, *(row_item.template raw_write_value<value_type *>()));
                     return true;
                 }
             }
@@ -1127,15 +1132,16 @@ public:
                     break;
             }
 
-            if (!ok)
+            if (!ok) {
                 return false;
+            }
 
             // skip invalid (inserted but yet committed) values, but do not abort
             if (!e->valid()) {
                 return true;
             }
 
-            callback(key_type(key), e->row_container.row);
+            callback(e->key, e->row_container.row);
             return true;
         };
 
@@ -1143,7 +1149,15 @@ public:
         Key art_end;
         make_key(begin, art_begin);
         make_key(end, art_end);
-        table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+
+        std::vector<TID> results;
+        table_.lookupRange(art_begin, art_end, results, node_callback);
+
+        for (int i = 0; i < std::min((size_t) limit, results.size()); i++) {
+            if (!value_callback(results[i])) {
+                return false;
+            }
+        }
         return true;
         // range_scanner<decltype(node_callback), decltype(value_callback), Reverse>
         //         scanner(end, node_callback, value_callback);
@@ -1190,7 +1204,6 @@ public:
             // lp.finish(0, *ti);
         }
         if (old) {
-            // printf("hi\n");
             // Transaction::rcu_delete(old);
             delete old;
         }

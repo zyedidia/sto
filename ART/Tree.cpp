@@ -83,7 +83,7 @@ namespace ART_OLC {
         }
     }
 
-    bool Tree::lookupRange(const Key &start, const Key &end, std::function<void(N*)> observe_node, std::function<bool(const Key &k, TID t)> observe_value) const {
+    bool Tree::lookupRange(const Key &start, const Key &end, std::vector<TID>& results, std::function<void(N*)> observe_node) const {
         for (uint32_t i = 0; i < std::min(start.getKeyLen(), end.getKeyLen()); ++i) {
             if (start[i] > end[i]) {
                 return false;
@@ -92,14 +92,14 @@ namespace ART_OLC {
             }
         }
         // EpocheGuard epocheGuard(threadEpocheInfo);
-        std::function<void(const N *)> copy = [&copy, &observe_value, &observe_node, this](const N *node) {
+        std::function<void(const N *)> copy = [&copy, &results, &observe_node, this](const N *node) {
             if (N::isLeaf(node)) {
                 printf("found something\n");
                 TID tid = N::getLeaf(node);
-                Key art_key;
-                loadKey(tid, art_key);
-                observe_value(art_key, tid);
-                // results.push_back(node);
+                // Key art_key;
+                // loadKey(tid, art_key);
+                // observe_value(art_key, tid);
+                results.push_back(tid);
             } else {
                 std::tuple<uint8_t, N *> children[256];
                 uint32_t childrenCount = 0;
