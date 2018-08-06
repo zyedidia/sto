@@ -1069,9 +1069,18 @@ public:
 
         Key art_begin;
         Key art_end;
+        Key ckey;
         make_key(begin, art_begin);
         make_key(end, art_end);
-        return table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+        std::vector<std::pair<Key*, TID>> results;
+        size_t resultsFound;
+        bool success = table_.lookupRange(art_begin, art_end, ckey, results, (size_t) -1, &resultsFound, node_callback);
+
+        for (int i = 0; i < results.size(); i++) {
+            if (!value_callback(results[i].first, results[i].second)) {
+                return false;
+            }
+        }
         // range_scanner<decltype(node_callback), decltype(value_callback), Reverse>
         //     scanner(end, node_callback, value_callback);
         // if (Reverse)
@@ -1135,9 +1144,18 @@ public:
 
         Key art_begin;
         Key art_end;
+        Key ckey;
         make_key(begin, art_begin);
         make_key(end, art_end);
-        return table_.lookupRange(art_begin, art_end, node_callback, value_callback);
+        std::vector<std::pair<Key*, TID>> results;
+        size_t resultsFound;
+        bool success = table_.lookupRange(art_begin, art_end, ckey, results, (size_t) -1, &resultsFound, node_callback);
+
+        for (int i = 0; i < results.size(); i++) {
+            if (!value_callback(results[i].first, results[i].second)) {
+                return false;
+            }
+        }
         // range_scanner<decltype(node_callback), decltype(value_callback), Reverse>
         //         scanner(end, node_callback, value_callback);
         // if (Reverse)
