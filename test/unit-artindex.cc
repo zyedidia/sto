@@ -566,6 +566,31 @@ void testReadWrite() {
     printf("PASS: %s\n", __FUNCTION__);
 }
 
+void testLookupRange() {
+    wrapper_type art;
+    
+    TestTransaction t1(0);
+    art.insert("hello", 1);
+    art.insert("foo", 50);
+    art.insert("bar", 75);
+
+    auto scan_callback = [&] (const lcdf::Str& key, const wrapper_type::oi_value& val) {
+        printf("lookup %s %d\n", key.data(), val.val);
+        return true;
+    };
+
+    art.oi.range_scan<decltype(scan_callback), false>("a", "z", scan_callback, bench::RowAccess::ObserveValue);
+    assert(t1.try_commit());
+    // art.transPut("foo", 1);
+    //
+    // TestTransaction t2(1);
+    // art.transPut("b", 1);
+    // assert(t2.try_commit());
+    //
+    // assert(!t1.try_commit());
+    printf("PASS: %s\n", __FUNCTION__);
+}
+
 int main(int argc, char *argv[]) {
     testSimple();
     testSimpleErase();
@@ -582,6 +607,7 @@ int main(int argc, char *argv[]) {
     testEmptySplit();
     testDoubleRead();
     testReadWrite();
+    testLookupRange();
 
     printf("Tests pass\n");
 }

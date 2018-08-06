@@ -946,6 +946,7 @@ public:
             //    item.add_write<value_type>(*vptr);
             //else
             //    item.add_write<value_type *>(vptr);
+            printf("insert row item %p\n", row_item);
             row_item.add_write();
             row_item.add_flags(insert_bit);
 
@@ -1021,12 +1022,14 @@ public:
                     std::initializer_list<column_access_t> accesses, bool phantom_protection = true, int limit = -1) {
         assert((limit == -1) || (limit > 0));
         auto node_callback = [&] (node_type* node) {
+            printf("observe node\n");
             return ((!phantom_protection) || register_internode_version(node, node->vers));
         };
 
         auto cell_accesses = column_to_cell_accesses(value_container_type::map, accesses);
 
         auto value_callback = [&] (const Key& key, TID t) {
+            printf("value callback\n");
             internal_elem* e = (internal_elem*) t;
             TransProxy row_item = index_read_my_write ? Sto::item(this, item_key_t::row_item_key(e))
                                                       : Sto::fresh_item(this, item_key_t::row_item_key(e));
@@ -1087,6 +1090,7 @@ public:
                     RowAccess access, bool phantom_protection = true, int limit = -1) {
         assert((limit == -1) || (limit > 0));
         auto node_callback = [&] (node_type* node) {
+            printf("observe node\n");
             return ((!phantom_protection) || register_internode_version(node, node->vers));
         };
         // printf("Reverse: %d\n", Reverse);
@@ -1095,6 +1099,7 @@ public:
             internal_elem* e = (internal_elem*) t;
             TransProxy row_item = index_read_my_write ? Sto::item(this, item_key_t::row_item_key(e))
                                                       : Sto::fresh_item(this, item_key_t::row_item_key(e));
+            printf("%d: frow item: %p\n", has_insert(row_item), row_item);
 
             if (index_read_my_write) {
                 if (has_delete(row_item)) {

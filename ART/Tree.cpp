@@ -94,6 +94,7 @@ namespace ART_OLC {
         // EpocheGuard epocheGuard(threadEpocheInfo);
         std::function<void(const N *)> copy = [&copy, &observe_value, &observe_node, this](const N *node) {
             if (N::isLeaf(node)) {
+                printf("found something\n");
                 TID tid = N::getLeaf(node);
                 Key art_key;
                 loadKey(tid, art_key);
@@ -266,6 +267,7 @@ namespace ART_OLC {
                 parentNode->readUnlockOrRestart(vp, needRestart);
                 if (needRestart) goto restart;
             }
+            printf("observe node from ART\n");
             observe_node(node);
             node->readUnlockOrRestart(v, needRestart);
             if (needRestart) goto restart;
