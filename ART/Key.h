@@ -6,6 +6,7 @@
 #include <cstring>
 #include <memory>
 #include <assert.h>
+#include "str.hh"
 
 using KeyLen = uint32_t;
 
@@ -44,6 +45,10 @@ public:
     KeyLen getKeyLen() const;
 
     void setKeyLen(KeyLen len);
+
+    operator lcdf::Str() const {
+        return lcdf::Str(&data[0], len);
+    }
 
 };
 

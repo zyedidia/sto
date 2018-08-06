@@ -336,44 +336,44 @@ public:
 
     bool lookupRange(TKey start, TKey end, TKey continueKey, TVal result[],
                                 std::size_t resultSize, std::size_t &resultsFound) const {
-        Key art_start;
-        Key art_end;
-        Key art_continue;
-
-        art_start.set(start.first, start.second);
-        art_end.set(end.first, end.second);
-        // art_continue.set(continueKey.first, continueKey.second);
-
-        TID* art_result = new TID[resultSize];
-
-        bool success = root_.lookupRange(art_start, art_end, art_continue, art_result, resultSize, resultsFound, [this](Node* node){
-            auto item = Sto::item(this, node);
-            // node->vers.observe_read(item);
-            item.observe(node->vers);
-        });
-        int validResults = resultsFound;
-
-        int j = 0;
-        for (uint64_t i = 0; i < resultsFound; i++) {
-            Element* e = (Element*) art_result[i];
-            auto item = Sto::item(this, e);
-            if (item.has_flag(deleted_bit)) {
-                validResults--;
-            } else if (item.has_write()) {
-                result[j] = item.template write_value<TVal>();
-                j++;
-            } else if (e->poisoned) {
-                throw Transaction::Abort();
-            } else {
-                item.observe(e->vers);
-                // e->vers.observe_read(item);
-                result[j] = e->val;
-                j++;
-            }
-        }
-        resultsFound = validResults;
-
-        return success;
+        return true;
+        // Key art_start;
+        // Key art_end;
+        // Key art_continue;
+        //
+        // art_start.set(start.first, start.second);
+        // art_end.set(end.first, end.second);
+        // // art_continue.set(continueKey.first, continueKey.second);
+        //
+        // TID* art_result = new TID[resultSize];
+        //
+        // bool success = root_.lookupRange(art_start, art_end, art_continue, art_result, resultSize, resultsFound, [this](Node* node){
+        //     auto item = Sto::item(this, node);
+        //     item.observe(node->vers);
+        // });
+        // int validResults = resultsFound;
+        //
+        // int j = 0;
+        // for (uint64_t i = 0; i < resultsFound; i++) {
+        //     Element* e = (Element*) art_result[i];
+        //     auto item = Sto::item(this, e);
+        //     if (item.has_flag(deleted_bit)) {
+        //         validResults--;
+        //     } else if (item.has_write()) {
+        //         result[j] = item.template write_value<TVal>();
+        //         j++;
+        //     } else if (e->poisoned) {
+        //         throw Transaction::Abort();
+        //     } else {
+        //         item.observe(e->vers);
+        //         // e->vers.observe_read(item);
+        //         result[j] = e->val;
+        //         j++;
+        //     }
+        // }
+        // resultsFound = validResults;
+        //
+        // return success;
     }
 
     bool lock(TransItem& item, Transaction& txn) override {
