@@ -597,21 +597,21 @@ void testLookupRange() {
 }
 
 int main(int argc, char *argv[]) {
-    // testSimple();
-    // testSimpleErase();
-    // testAbsentErase();
-    // testEmptyErase();
-    // multiWrite();
-    // testUpgradeNode();
-    // testUpgradeNode2();
-    // testUpgradeNode3();
-    // testUpgradeNode4();
-    // testDowngradeNode();
-    // testSplitNode();
-    // testSplitNode2();
-    // testEmptySplit();
-    // testDoubleRead();
-    // testReadWrite();
+    testSimple();
+    testSimpleErase();
+    testAbsentErase();
+    testEmptyErase();
+    multiWrite();
+    testUpgradeNode();
+    testUpgradeNode2();
+    testUpgradeNode3();
+    testUpgradeNode4();
+    testDowngradeNode();
+    testSplitNode();
+    testSplitNode2();
+    testEmptySplit();
+    testDoubleRead();
+    testReadWrite();
     testLookupRange();
 
     printf("Tests pass\n");

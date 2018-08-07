@@ -34,7 +34,7 @@ namespace ART_OLC {
         N256 = 3
     };
 
-    static constexpr uint32_t maxStoredPrefixLength = 11;
+    static constexpr uint32_t maxStoredPrefixLength = 48;
 
     using Prefix = uint8_t[maxStoredPrefixLength];
 

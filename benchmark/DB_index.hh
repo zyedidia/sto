@@ -765,6 +765,7 @@ public:
         if (e) {
             return select_row(reinterpret_cast<uintptr_t>(e), accesses);
         } else {
+            printf("could not find\n");
             if (!register_internode_version(r.second, r.second->vers))
                 goto abort;
             return sel_return_type(true, false, 0, nullptr);
@@ -839,6 +840,7 @@ public:
 
         if (index_read_my_write) {
             if (has_delete(row_item)) {
+                printf("has delete\n");
                 return sel_return_type(true, false, 0, nullptr);
             }
             if (any_has_write || has_row_update(row_item)) {
@@ -877,6 +879,12 @@ public:
     // if a row already exists, then use select (FOR UPDATE) instead
     ins_return_type
     insert_row(const key_type& key, value_type *vptr, bool overwrite = false) {
+        // Str s = key;
+        // printf("insert row: [");
+        // for (int i = 0; i < s.length(); i++) {
+        //     printf("%d, ", s[i]);
+        // }
+        // printf("] %d\n", s.length());
         // cursor_type lp(table_, key);
         // bool found = lp.find_insert(*ti);
 
@@ -946,7 +954,6 @@ public:
             //    item.add_write<value_type>(*vptr);
             //else
             //    item.add_write<value_type *>(vptr);
-            printf("insert row item %p\n", row_item);
             row_item.add_write();
             row_item.add_flags(insert_bit);
 
@@ -956,6 +963,7 @@ public:
             if (old) {
                 old->valid = false;
                 TransProxy old_item = Sto::item(this, get_internode_key(old));
+                printf("upgrade\n");
                 old_item.add_flags(self_upgrade_bit);
                 if (old_item.has_read()) {
                     if (!register_internode_version(parent, parent->vers))
@@ -976,6 +984,12 @@ public:
 
     del_return_type
     delete_row(const key_type& key) {
+        Str s = key;
+        printf("delete row: [");
+        for (int i = 0; i < s.length(); i++) {
+            printf("%d, ", s[i]);
+        }
+        printf("] %d\n", s.length());
         // unlocked_cursor_type lp(table_, key);
         // bool found = lp.find_unlocked(*ti);
         Key art_key;
@@ -1022,14 +1036,12 @@ public:
                     std::initializer_list<column_access_t> accesses, bool phantom_protection = true, int limit = -1) {
         assert((limit == -1) || (limit > 0));
         auto node_callback = [&] (node_type* node) {
-            printf("observe node\n");
             return ((!phantom_protection) || register_internode_version(node, node->vers));
         };
 
         auto cell_accesses = column_to_cell_accesses(value_container_type::map, accesses);
 
         auto value_callback = [&] (TID t) {
-            printf("value callback\n");
             internal_elem* e = (internal_elem*) t;
             TransProxy row_item = index_read_my_write ? Sto::item(this, item_key_t::row_item_key(e))
                                                       : Sto::fresh_item(this, item_key_t::row_item_key(e));
@@ -1078,8 +1090,11 @@ public:
         std::vector<TID> results;
         table_.lookupRange(art_begin, art_end, results, node_callback);
 
-        for (int i = 0; i < std::min((size_t) limit, results.size()); i++) {
-            if (!value_callback(results[i])) {
+        size_t last = std::min((size_t) limit, results.size());
+        for (size_t i = 0; i < last; i++) {
+            size_t idx = i;
+            if (Reverse) idx = last-i-1;
+            if (!value_callback(results[idx])) {
                 return false;
             }
         }
@@ -1098,7 +1113,6 @@ public:
                     RowAccess access, bool phantom_protection = true, int limit = -1) {
         assert((limit == -1) || (limit > 0));
         auto node_callback = [&] (node_type* node) {
-            printf("observe node\n");
             return ((!phantom_protection) || register_internode_version(node, node->vers));
         };
 
@@ -1153,8 +1167,11 @@ public:
         std::vector<TID> results;
         table_.lookupRange(art_begin, art_end, results, node_callback);
 
-        for (int i = 0; i < std::min((size_t) limit, results.size()); i++) {
-            if (!value_callback(results[i])) {
+        size_t last = std::min((size_t) limit, results.size());
+        for (size_t i = 0; i < last; i++) {
+            size_t idx = i;
+            if (Reverse) idx = last-i-1;
+            if (!value_callback(results[idx])) {
                 return false;
             }
         }
@@ -1184,6 +1201,12 @@ public:
     void nontrans_put(const key_type& k, const value_type& v) {
         // cursor_type lp(table_, k);
         // bool found = lp.find_insert(*ti);
+        // Str s = k;
+        // printf("nontrans put: [");
+        // for (int i = 0; i < s.length(); i++) {
+        //     printf("%d, ", s[i]);
+        // }
+        // printf("] %d\n", s.length());
 
         Key art_key;
         make_key(k, art_key);
@@ -1455,12 +1478,22 @@ private:
         internal_elem* e = (internal_elem*) tid;
         Str s = e->key;
         key.set(s.data(), s.length()+1);
-        key[s.length()] = 0;
+        key[s.length()] = 42;
+        // printf("loadkey: [");
+        // for (int i = 0; i < key.getKeyLen(); i++) {
+        //     printf("%d, ", key[i]);
+        // }
+        // printf("] %d\n", key.getKeyLen());
     }
 
     static void make_key(Str key, Key& art_key) {
+        // printf("make_key: [");
+        // for (int i = 0; i < s.length(); i++) {
+        //     printf("%d, ", s[i]);
+        // }
+        // printf("] %d\n", s.length());
         art_key.set(key.data(), key.length()+1);
-        art_key[key.length()] = 0;
+        art_key[key.length()] = 42;
     }
 
     bool register_internode_version(node_type *node, nodeversion_value_type nodeversion) {

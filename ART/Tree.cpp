@@ -46,6 +46,11 @@ namespace ART_OLC {
                 case CheckPrefixResult::NoMatch:
                     node->readUnlockOrRestart(v, needRestart);
                     if (needRestart) goto restart;
+                    printf("could not find");
+                    for (int i = 0; i < k.getKeyLen(); i++) {
+                        printf("%d, ", k[i]);
+                    }
+                    printf("] %d\n", k.getKeyLen());
                     return {0, node};
                 case CheckPrefixResult::OptimisticMatch:
                     optimisticPrefixMatch = true;
@@ -84,6 +89,11 @@ namespace ART_OLC {
     }
 
     bool Tree::lookupRange(const Key &start, const Key &end, std::vector<TID>& results, std::function<void(N*)> observe_node) const {
+        printf("lookupRange");
+        for (int i = 0; i < start.getKeyLen(); i++) {
+            printf("%d, ", start[i]);
+        }
+        printf("] %d\n", start.getKeyLen());
         for (uint32_t i = 0; i < std::min(start.getKeyLen(), end.getKeyLen()); ++i) {
             if (start[i] > end[i]) {
                 return false;
@@ -94,12 +104,12 @@ namespace ART_OLC {
         // EpocheGuard epocheGuard(threadEpocheInfo);
         std::function<void(const N *)> copy = [&copy, &results, &observe_node, this](const N *node) {
             if (N::isLeaf(node)) {
-                printf("found something\n");
                 TID tid = N::getLeaf(node);
                 // Key art_key;
                 // loadKey(tid, art_key);
                 // observe_value(art_key, tid);
                 results.push_back(tid);
+                printf("copy %p\n", tid);
             } else {
                 std::tuple<uint8_t, N *> children[256];
                 uint32_t childrenCount = 0;
@@ -256,9 +266,10 @@ namespace ART_OLC {
             vp = v;
             node = nextNode;
             PCEqualsResults prefixResult;
-            if (N::isLeaf(node)) {
-                printf("isleaf %d\n", N::isLeaf(node));
-            }
+            // if (N::isLeaf(node)) {
+            //     printf("isleaf %d\n", N::isLeaf(node));
+            //     return false;
+            // }
             v = node->readLockOrRestart(needRestart);
             if (needRestart) goto restart;
             prefixResult = checkPrefixEquals(node, level, start, end, loadKey, needRestart);
@@ -267,13 +278,13 @@ namespace ART_OLC {
                 parentNode->readUnlockOrRestart(vp, needRestart);
                 if (needRestart) goto restart;
             }
-            printf("observe node from ART\n");
             observe_node(node);
             node->readUnlockOrRestart(v, needRestart);
             if (needRestart) goto restart;
 
             switch (prefixResult) {
                 case PCEqualsResults::NoMatch: {
+                   printf("end lookuprange\n");
                     return false;
                 }
                 case PCEqualsResults::Contained: {
@@ -284,6 +295,7 @@ namespace ART_OLC {
                     uint8_t startLevel = (start.getKeyLen() > level) ? start[level] : 0;
                     uint8_t endLevel = (end.getKeyLen() > level) ? end[level] : 255;
                     if (startLevel != endLevel) {
+                        printf("nice\n");
                         std::tuple<uint8_t, N *> children[256];
                         uint32_t childrenCount = 0;
                         v = N::getChildren(node, startLevel, endLevel, children, childrenCount);
@@ -299,10 +311,29 @@ namespace ART_OLC {
                             }
                         }
                     } else {
+                        printf("next node at level: %d\n", startLevel);
                         nextNode = N::getChild(startLevel, node);
                         node->readUnlockOrRestart(v, needRestart);
                         if (needRestart) goto restart;
+                        if (!nextNode) {
+                            printf("null\n");
+                            printf("end lookuprange\n");
+                            return false;
+                        }
+                        if (N::isLeaf(nextNode)) {
+                            printf("is leaf %p ", N::getLeaf(nextNode));
+                            Key k;
+                            loadKey(N::getLeaf(nextNode), k);
+                            for (int i = 0; i < k.getKeyLen(); i++) {
+                                printf("%d, ", k[i]);
+                            }
+                            printf("] %d\n", k.getKeyLen());
+                            copy(nextNode);
+                            printf("end lookuprange\n");
+                            return false;
+                        }
                         level++;
+                        printf("increase level: %d\n", level);
                         continue;
                     }
                     break;
@@ -310,6 +341,7 @@ namespace ART_OLC {
             }
             break;
         }
+        printf("end lookuprange nice\n");
         return false;
     }
 
@@ -409,6 +441,7 @@ namespace ART_OLC {
             if (needRestart) goto restart;
             switch (res) {
                 case CheckPrefixPessimisticResult::NoMatch: {
+                    assert(nextLevel < k.getKeyLen()); //prevent duplicate key
                     parentNode->upgradeToWriteLockOrRestart(parentVersion, needRestart);
                     if (needRestart) goto restart;
 
@@ -439,6 +472,7 @@ namespace ART_OLC {
                 case CheckPrefixPessimisticResult::Match:
                     break;
             }
+            assert(nextLevel < k.getKeyLen()); //prevent duplicate key
             // if (nextLevel >= k.getKeyLen()) {
             //     node->readUnlockOrRestart(v, needRestart);
             //     if (needRestart) goto restart;
@@ -455,9 +489,11 @@ namespace ART_OLC {
             if (needRestart) goto restart;
 
             if (nextNode == nullptr) {
+                // printf("%d\n", nodeKey);
                 if (!tid) tid = make_tid();
                 N* newNode = N::insertAndUnlock(node, v, parentNode, parentVersion, parentKey, nodeKey, N::setLeaf(tid), needRestart);
                 if (needRestart) goto restart;
+                // printf("insert new2\n");
                 if (newNode) {
                     return ins_return_type(tid, newNode, node);
                 }
@@ -486,6 +522,7 @@ namespace ART_OLC {
                 while (key[level + prefixLength] == k[level + prefixLength]) {
                     prefixLength++;
                     if (level + prefixLength >= k.getKeyLen() || level + prefixLength >= key.getKeyLen()) {
+                        printf("update\n");
                         node->writeUnlock();
                         return ins_return_type(N::getLeaf(nextNode), nullptr, nullptr);
                     }
@@ -687,6 +724,7 @@ namespace ART_OLC {
             Key kt;
             for (uint32_t i = 0; i < n->getPrefixLength(); ++i) {
                 if (i == maxStoredPrefixLength) {
+                    printf("HELLO\n");
                     auto anyTID = N::getAnyChildTid(n, needRestart);
                     if (needRestart) return PCEqualsResults::BothMatch;
                     loadKey(anyTID, kt);

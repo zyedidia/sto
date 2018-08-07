@@ -436,7 +436,13 @@ void tpcc_runner<DBParams>::run_txn_orderstatus() {
     uint64_t cus_o_id = 0;
     auto scan_callback = [&] (const order_cidx_key& key, const bench::dummy_row& dummy) -> bool {
         (void)dummy;
-        cus_o_id = key.o_id;
+        lcdf::Str s = key;
+        printf("callback: [");
+        for (int i = 0; i < s.length(); i++) {
+            printf("%d, ", s[i]);
+        }
+        printf("] %d\n", s.length());
+        cus_o_id = bswap(key.o_id);
         return true;
     };
 
